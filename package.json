@@ -1,0 +1,37 @@
+{
+  "name": "pdf-editor",
+  "productName": "PDF Editor",
+  "version": "0.1.0",
+  "description": "A desktop PDF editor for drawings: markups, measurements and document tools.",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "4.10.38"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "com.matt.pdfeditor",
+    "productName": "PDF Editor",
+    "files": ["src/**/*", "package.json"],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": ["dmg"]
+    },
+    "win": {
+      "target": ["nsis"]
+    },
+    "fileAssociations": [
+      { "ext": "pdf", "name": "PDF Document", "role": "Editor" }
+    ]
+  }
+}

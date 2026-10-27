@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; worker-src 'self' blob:; font-src 'self' data:">
+  <title>PDF Editor</title>
+  <link rel="stylesheet" href="../../node_modules/pdfjs-dist/web/pdf_viewer.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header id="toolbar">
+    <div class="group">
+      <button id="btn-open" title="Open PDF (⌘O)">Open</button>
+      <button id="btn-sidebar" class="icon" title="Toggle thumbnails (⌘T)" aria-pressed="true">▤</button>
+    </div>
+
+    <div class="group" data-needs-doc>
+      <button id="btn-tool-select" class="tool active" title="Select text (V)">Select</button>
+      <button id="btn-tool-hand" class="tool" title="Pan (H, or hold Space)">Pan</button>
+    </div>
+
+    <div class="group" data-needs-doc>
+      <button id="btn-prev-page" class="icon" title="Previous page">‹</button>
+      <input id="page-number" type="number" min="1" value="1" aria-label="Page number">
+      <span id="page-count">/ 0</span>
+      <button id="btn-next-page" class="icon" title="Next page">›</button>
+    </div>
+
+    <div class="group" data-needs-doc>
+      <button id="btn-zoom-out" class="icon" title="Zoom out (⌘−)">−</button>
+      <select id="zoom-select" aria-label="Zoom">
+        <option value="page-width">Fit Width</option>
+        <option value="page-fit">Fit Page</option>
+        <option value="0.25">25%</option>
+        <option value="0.5">50%</option>
+        <option value="0.75">75%</option>
+        <option value="1">100%</option>
+        <option value="1.5">150%</option>
+        <option value="2">200%</option>
+        <option value="4">400%</option>
+        <option value="8">800%</option>
+        <option value="custom" hidden></option>
+      </select>
+      <button id="btn-zoom-in" class="icon" title="Zoom in (⌘=)">+</button>
+    </div>
+
+    <div class="group spacer"></div>
+
+    <div class="group" data-needs-doc>
+      <button id="btn-find" title="Find (⌘F)">Find</button>
+    </div>
+  </header>
+
+  <nav id="tabbar" aria-label="Open documents"></nav>
+
+  <div id="findbar" hidden>
+    <input id="find-input" type="search" placeholder="Find in document" aria-label="Find in document">
+    <button id="find-prev" class="icon" title="Previous match (⇧Enter)">↑</button>
+    <button id="find-next" class="icon" title="Next match (Enter)">↓</button>
+    <label><input id="find-case" type="checkbox"> Match case</label>
+    <label><input id="find-word" type="checkbox"> Whole words</label>
+    <span id="find-status"></span>
+    <button id="find-close" class="icon" title="Close (Esc)">✕</button>
+  </div>
+
+  <main id="workspace">
+    <aside id="sidebar"></aside>
+    <section id="viewers">
+      <div id="welcome">
+        <div class="welcome-card">
+          <h1>PDF Editor</h1>
+          <p>Open a PDF, or drag one onto this window.</p>
+          <button id="btn-open-welcome">Open PDF…</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer id="statusbar">
+    <span id="status-file"></span>
+    <span id="status-size"></span>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
