@@ -44,8 +44,10 @@ async function openFile(file) {
     alert(`Could not open ${file.name}.\n\n${err.message}`);
     return;
   }
-  if (tab === activeTab) updateToolbar();
-window.desktop.ready();
+  if (tab === activeTab) {
+    updateToolbar();
+    if (!els.findbar.hidden && els.findInput.value) runFind('');
+  }
 }
 
 function wireTabEvents(tab) {
@@ -64,7 +66,6 @@ function activateTab(tab) {
   for (const t of tabs) t.show(t === tab);
   renderTabbar();
   updateToolbar();
-window.desktop.ready();
   applyTool();
   els.findStatus.textContent = '';
   if (tab) {
