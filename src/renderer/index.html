@@ -12,13 +12,16 @@
   <header id="toolbar">
     <div class="group">
       <button id="btn-open" title="Open PDF (⌘O)">Open</button>
+      <button id="btn-save" title="Save (⌘S)" data-needs-doc>Save</button>
       <button id="btn-sidebar" class="icon" title="Toggle thumbnails (⌘T)" aria-pressed="true">▤</button>
     </div>
 
     <div class="group" data-needs-doc>
-      <button id="btn-tool-select" class="tool active" title="Select text (V)">Select</button>
-      <button id="btn-tool-hand" class="tool" title="Pan (H, or hold Space)">Pan</button>
+      <button id="btn-undo" class="icon" title="Undo (⌘Z)">↶</button>
+      <button id="btn-redo" class="icon" title="Redo (⇧⌘Z)">↷</button>
     </div>
+
+    <div class="group tools" id="tool-buttons" data-needs-doc></div>
 
     <div class="group" data-needs-doc>
       <button id="btn-prev-page" class="icon" title="Previous page">‹</button>
@@ -53,6 +56,39 @@
   </header>
 
   <nav id="tabbar" aria-label="Open documents"></nav>
+
+  <div id="propbar" hidden>
+    <span id="prop-title"></span>
+    <label data-prop="stamp">Stamp <select id="prop-stamp"></select></label>
+    <label data-prop="color">Color <input id="prop-color" type="color"></label>
+    <label data-prop="fill"><input id="prop-fill-on" type="checkbox"> Fill <input id="prop-fill" type="color"></label>
+    <label data-prop="width">Line
+      <select id="prop-width">
+        <option value="0">None</option>
+        <option value="0.5">0.5 pt</option>
+        <option value="1">1 pt</option>
+        <option value="1.5">1.5 pt</option>
+        <option value="2">2 pt</option>
+        <option value="3">3 pt</option>
+        <option value="4">4 pt</option>
+        <option value="6">6 pt</option>
+        <option value="8">8 pt</option>
+        <option value="12">12 pt</option>
+        <option value="14">14 pt</option>
+        <option value="18">18 pt</option>
+        <option value="24">24 pt</option>
+      </select>
+    </label>
+    <label data-prop="fontSize">Text
+      <select id="prop-font-size">
+        <option>8</option><option>9</option><option>10</option><option>11</option><option>12</option>
+        <option>14</option><option>16</option><option>18</option><option>20</option><option>24</option>
+        <option>28</option><option>36</option><option>48</option><option>72</option>
+      </select>
+    </label>
+    <label data-prop="opacity">Opacity <input id="prop-opacity" type="range" min="10" max="100" step="5"> <span id="prop-opacity-value"></span></label>
+    <button id="prop-delete" title="Delete markup (⌫)">Delete</button>
+  </div>
 
   <div id="findbar" hidden>
     <input id="find-input" type="search" placeholder="Find in document" aria-label="Find in document">

@@ -1,10 +1,13 @@
 const { app, BrowserWindow, dialog, ipcMain, Menu, shell } = require('electron');
 const fs = require('fs/promises');
+const os = require('os');
 const path = require('path');
 
 const isMac = process.platform === 'darwin';
 let mainWindow = null;
 let rendererReady = false;
+let closeConfirmed = false;
+let quitting = false;
 // Files the OS asked us to open before the page was ready to receive them (macOS "Open With", double-click).
 const pendingFiles = [];
 
@@ -31,9 +34,17 @@ function createWindow() {
     return { action: 'deny' };
   });
 
+  // Let the page ask about unsaved changes before the window goes away.
+  mainWindow.on('close', (event) => {
+    if (closeConfirmed || !rendererReady) return;
+    event.preventDefault();
+    mainWindow.webContents.send('app:request-close');
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
     rendererReady = false;
+    closeConfirmed = false;
   });
 }
 
@@ -79,6 +90,9 @@ function buildMenu() {
         { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: showOpenDialog },
         { role: 'recentDocuments', submenu: [{ role: 'clearRecentDocuments' }] },
         { type: 'separator' },
+        { label: 'Save', accelerator: 'CmdOrCtrl+S', click: () => sendCommand('save') },
+        { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: () => sendCommand('save-as') },
+        { type: 'separator' },
         { label: 'Close Tab', accelerator: 'CmdOrCtrl+W', click: () => sendCommand('close-tab') },
         ...(isMac ? [] : [{ type: 'separator' }, { role: 'quit' }]),
       ],
@@ -86,7 +100,12 @@ function buildMenu() {
     {
       label: 'Edit',
       submenu: [
+        { label: 'Undo', accelerator: 'CmdOrCtrl+Z', click: () => sendCommand('undo') },
+        { label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z', click: () => sendCommand('redo') },
+        { type: 'separator' },
+        { role: 'cut' },
         { role: 'copy' },
+        { role: 'paste' },
         { role: 'selectAll' },
         { type: 'separator' },
         { label: 'Find…', accelerator: 'CmdOrCtrl+F', click: () => sendCommand('find') },
@@ -121,6 +140,52 @@ ipcMain.on('renderer:ready', () => {
   while (pendingFiles.length) sendFileToRenderer(pendingFiles.shift());
 });
 ipcMain.handle('dialog:open', showOpenDialog);
+ipcMain.handle('app:user', () => {
+  try {
+    return os.userInfo().username;
+  } catch {
+    return '';
+  }
+});
+ipcMain.handle('dialog:save-as', async (_event, defaultPath) => {
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: 'Save PDF',
+    defaultPath,
+    filters: [{ name: 'PDF Documents', extensions: ['pdf'] }],
+  });
+  return result.canceled ? null : result.filePath;
+});
+ipcMain.handle('dialog:unsaved', async (_event, name) => {
+  const { response } = await dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    message: `Do you want to save the changes you made to "${name}"?`,
+    detail: "Your changes will be lost if you don't save them.",
+    buttons: ['Save', "Don't Save", 'Cancel'],
+    defaultId: 0,
+    cancelId: 2,
+  });
+  return ['save', 'discard', 'cancel'][response];
+});
+ipcMain.handle('dialog:error', (_event, title, message) => dialog.showErrorBox(title, message));
+// Writes to a temporary file first so a failed save never leaves a half-written PDF.
+ipcMain.handle('file:save', async (_event, filePath, data) => {
+  const tmp = path.join(path.dirname(filePath), `.${path.basename(filePath)}.${process.pid}.tmp`);
+  await fs.writeFile(tmp, data);
+  await fs.rename(tmp, filePath);
+  app.addRecentDocument(filePath);
+});
+ipcMain.on('app:close-confirmed', () => {
+  closeConfirmed = true;
+  if (quitting) app.quit();
+  else if (mainWindow) mainWindow.close();
+});
+ipcMain.on('app:close-cancelled', () => {
+  quitting = false;
+});
+
+app.on('before-quit', () => {
+  quitting = true;
+});
 ipcMain.handle('file:read', (_event, filePath) => readPdf(filePath));
 
 // macOS delivers double-clicked / dragged-onto-dock files through this event.

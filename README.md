@@ -8,7 +8,7 @@ and [pdf-lib](https://pdf-lib.js.org/). macOS first, Windows later.
 ## Roadmap
 
 1. **Viewer** — open PDFs in tabs, zoom, pan, page thumbnails, text search. ✅
-2. **Markups** — pen, highlighter, text, callouts, clouds, arrows, shapes, stamps; saved into the PDF.
+2. **Markups** — pen, highlighter, text, callouts, clouds, arrows, shapes, stamps; saved into the PDF. ✅
 3. **Measurement and takeoff** — scale calibration, length, area, perimeter, count; Markups List with CSV/Excel export.
 4. **Document tools** — merge, split, insert, rotate, reorder pages; compare and overlay revisions.
 
@@ -43,3 +43,28 @@ it in Finder and choose **Open**.
 | Pan | H for the pan tool, or hold Space and drag, or middle-drag |
 | Select text | V |
 | Toggle thumbnails | ⌘T |
+| Save / Save As | ⌘S / ⇧⌘S |
+| Undo / redo | ⌘Z / ⇧⌘Z |
+
+## Markups
+
+| Tool | Key | Notes |
+| --- | --- | --- |
+| Select | V | Click a markup to select it, drag to move, drag the handles to resize. Double-click a text box or callout to edit its text. |
+| Pan | H | |
+| Pen | P | Freehand |
+| Highlighter | G | Freehand, translucent |
+| Line / Arrow | L / A | Hold Shift to snap to 45° |
+| Rectangle / Ellipse | R / E | Hold Shift for a square or circle |
+| Cloud | C | Revision cloud |
+| Text box | T | Click for a default-width box, or drag to set the width |
+| Callout | Q | Drag from the point being called out to where the text goes |
+| Stamp | S | Pick the stamp in the properties bar, then click to place |
+
+Delete or Backspace removes the selected markup; Esc deselects, then returns to Select.
+The properties bar sets color, fill, line width, text size and opacity for the selected
+markup, or for the next one you draw with the current tool.
+
+Markups are saved into the PDF as standard annotations (ink, line, square, circle,
+free text, stamp) with their own appearance, so they show up in Preview, Acrobat,
+Bluebeam and other readers. When you reopen the file here they come back editable.

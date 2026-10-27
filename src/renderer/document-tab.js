@@ -1,17 +1,21 @@
 // One open PDF: its viewer, find controller and thumbnail strip.
 import { pdfjsLib, viewerLib } from './pdfjs.js';
+import { MarkupStore } from './markups/store.js';
+import { MarkupLayer } from './markups/layer.js';
+import { extractMarkups, writeMarkups } from './markups/pdf-io.js';
 
 const THUMB_WIDTH = 120;
 
 export class DocumentTab {
   static #nextId = 1;
 
-  constructor({ name, path, data, viewersEl, sidebarEl }) {
+  constructor({ name, path, data, viewersEl, sidebarEl, markupUi }) {
     this.id = DocumentTab.#nextId++;
     this.name = name;
     this.path = path;
     this.size = data.byteLength;
     this.data = data;
+    this.markupUi = markupUi;
 
     this.container = document.createElement('div');
     this.container.className = 'viewer-container';
@@ -50,14 +54,43 @@ export class DocumentTab {
   }
 
   async load() {
+    // Our own markups come out of the file into the editable layer; the rest
+    // of the PDF (including other apps' annotations) is what pdf.js draws.
+    const { base, markups, editable } = await extractMarkups(this.data);
+    this.base = base;
+    this.editable = editable;
+    this.store = new MarkupStore(markups);
+    this.markups = new MarkupLayer({ tab: this, store: this.store, ui: this.markupUi });
+    this.container.addEventListener('pointerdown', (e) => {
+      if (!e.target.closest('.markup, [data-handle], .markup-editor')) this.markups.select(null);
+    });
+
     // pdf.js takes ownership of (and detaches) the buffer it is given, so hand it a copy.
-    this.loadingTask = pdfjsLib.getDocument({ data: this.data.slice() });
+    this.loadingTask = pdfjsLib.getDocument({ data: this.base.slice() });
     this.pdf = await this.loadingTask.promise;
     this.viewer.setDocument(this.pdf);
     this.linkService.setDocument(this.pdf);
     await new Promise((resolve) => this.eventBus.on('pagesinit', resolve, { once: true }));
     this.viewer.currentScaleValue = 'page-width';
     this.#buildThumbs();
+  }
+
+  get dirty() {
+    return !!this.store?.dirty;
+  }
+
+  /** Writes the document with its markups to disk. */
+  async save(filePath = this.path) {
+    if (!this.editable) throw new Error('This PDF is encrypted, so markups cannot be saved into it.');
+    this.markups.commitEditing();
+    const bytes = await writeMarkups(this.base, this.store.all);
+    await window.desktop.saveFile(filePath, bytes);
+    if (filePath !== this.path) {
+      this.path = filePath;
+      this.name = filePath.split(/[\\/]/).pop();
+    }
+    this.size = bytes.byteLength;
+    this.store.markSaved();
   }
 
   get pageCount() {
@@ -138,6 +171,7 @@ export class DocumentTab {
   }
 
   async destroy() {
+    this.markups?.destroy();
     this.thumbObserver.disconnect();
     this.container.remove();
     this.thumbsEl.remove();
