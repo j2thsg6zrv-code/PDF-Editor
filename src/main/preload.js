@@ -7,7 +7,7 @@ contextBridge.exposeInMainWorld('desktop', {
   pathForFile: (file) => webUtils.getPathForFile(file),
   ready: () => ipcRenderer.send('renderer:ready'),
   userName: () => ipcRenderer.invoke('app:user'),
-  saveAsDialog: (defaultPath) => ipcRenderer.invoke('dialog:save-as', defaultPath),
+  saveAsDialog: (defaultPath, kind) => ipcRenderer.invoke('dialog:save-as', defaultPath, kind),
   askUnsaved: (name) => ipcRenderer.invoke('dialog:unsaved', name),
   showError: (title, message) => ipcRenderer.invoke('dialog:error', title, message),
   saveFile: (filePath, data) => ipcRenderer.invoke('file:save', filePath, data),

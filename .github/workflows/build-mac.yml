@@ -22,8 +22,16 @@ jobs:
 
       - run: npm ci
 
+      # One architecture at a time: both disk images use the same volume name,
+      # and building them together makes macOS fail to unmount one of them.
+      # Spotlight indexing a freshly built disk image keeps it busy and stops it unmounting.
+      - name: Turn off Spotlight indexing
+        run: sudo mdutil -a -i off
+
       - name: Build .dmg installers (Intel and Apple silicon)
-        run: npm run dist:mac
+        run: |
+          npx electron-builder --mac --x64 --publish never
+          npx electron-builder --mac --arm64 --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 

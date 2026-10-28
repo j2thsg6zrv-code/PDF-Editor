@@ -1,5 +1,7 @@
 import { DocumentTab } from './document-tab.js';
 import { MarkupUi } from './markup-ui.js';
+import { MarkupsList } from './markups-list.js';
+import { PAPER_SCALE } from './markups/measure.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -22,8 +24,13 @@ const els = {
 
 const tabs = [];
 let activeTab = null;
-const markupUi = new MarkupUi({ activeTab: () => activeTab, onToolChange: () => applyTool() });
-const DRAW_TOOLS = new Set(['pen', 'highlight', 'line', 'arrow', 'rect', 'ellipse', 'cloud', 'text', 'callout', 'stamp']);
+const markupsList = new MarkupsList({ activeTab: () => activeTab });
+const markupUi = new MarkupUi({
+  activeTab: () => activeTab,
+  onToolChange: () => applyTool(),
+  onSelectionChange: () => markupsList.render(),
+});
+const NON_DRAW_TOOLS = new Set(['select', 'hand']);
 
 // ---------- Opening documents ----------
 
@@ -46,9 +53,15 @@ async function openFile(file) {
     window.desktop.showError('Could not open file', `${file.name}\n\n${err.message}`);
     return;
   }
-  tab.store.onChange(() => {
+  tab.store.onChange((_pages, { scales }) => {
     renderTabbar();
     updateUndoButtons();
+    if (tab !== activeTab) return;
+    markupsList.render();
+    if (scales) {
+      updateScaleStatus();
+      markupUi.refresh();
+    }
   });
   if (tab === activeTab) {
     updateToolbar();
@@ -117,7 +130,13 @@ function updateUndoButtons() {
 }
 
 function wireTabEvents(tab) {
-  tab.eventBus.on('pagechanging', () => tab === activeTab && updatePageControls());
+  tab.eventBus.on('pagechanging', () => {
+    if (tab !== activeTab) return;
+    updatePageControls();
+    updateScaleStatus();
+    markupUi.refresh();
+    if (document.getElementById('ml-page-only').checked) markupsList.render();
+  });
   tab.eventBus.on('pagesinit', () => tab === activeTab && updateToolbar());
   tab.eventBus.on('scalechanging', () => tab === activeTab && updateZoomControl());
   tab.eventBus.on('updatefindmatchescount', ({ matchesCount }) => tab === activeTab && showFindCount(matchesCount));
@@ -134,6 +153,7 @@ function activateTab(tab) {
   updateToolbar();
   applyTool();
   markupUi.refresh();
+  markupsList.render();
   els.findStatus.textContent = '';
   if (tab) {
     tab.container.focus({ preventScroll: true });
@@ -197,6 +217,17 @@ function updateToolbar() {
   updatePageControls();
   updateZoomControl();
   updateUndoButtons();
+  updateScaleStatus();
+}
+
+function updateScaleStatus() {
+  const el = document.getElementById('status-scale');
+  if (!activeTab?.store) {
+    el.textContent = '';
+    return;
+  }
+  const scale = activeTab.store.scaleFor(activeTab.currentPageIndex);
+  el.textContent = `Scale: ${(scale ?? PAPER_SCALE).label}`;
 }
 
 function updatePageControls() {
@@ -252,7 +283,7 @@ function applyTool() {
   const panning = tool === 'hand' || spaceHeld;
   for (const t of tabs) {
     t.container.classList.toggle('hand', panning);
-    t.container.classList.toggle('drawing', !panning && DRAW_TOOLS.has(tool));
+    t.container.classList.toggle('drawing', !panning && !NON_DRAW_TOOLS.has(tool));
   }
 }
 
@@ -342,6 +373,7 @@ $('btn-open').addEventListener('click', () => window.desktop.openDialog());
 $('btn-open-welcome').addEventListener('click', () => window.desktop.openDialog());
 $('btn-sidebar').addEventListener('click', toggleSidebar);
 $('btn-save').addEventListener('click', () => save(activeTab));
+$('btn-markups-list').addEventListener('click', () => markupsList.toggle());
 $('btn-undo').addEventListener('click', () => undo());
 $('btn-redo').addEventListener('click', () => undo(true));
 $('btn-prev-page').addEventListener('click', () => activeTab?.viewer.previousPage());
@@ -384,6 +416,15 @@ function isTyping(e) {
 window.addEventListener('keydown', (e) => {
   if (isTyping(e) || e.metaKey || e.ctrlKey || e.altKey) return;
   const toolId = e.key.length === 1 && markupUi.toolForKey(e.key);
+  const layer = activeTab?.markups;
+  if (layer?.drawingPoly && ['Enter', 'Escape', 'Backspace', 'Delete'].includes(e.key)) {
+    // Keys for a shape being clicked out point by point.
+    e.preventDefault();
+    if (e.key === 'Enter') layer.finishPoly();
+    else if (e.key === 'Escape') layer.cancelPoly();
+    else layer.undoVertex();
+    return;
+  }
   if (e.code === 'Space') {
     if (!spaceHeld) {
       spaceHeld = true;
@@ -421,6 +462,7 @@ window.desktop.onMenuCommand((command) => {
     case 'zoom-fit-width': return setZoom('page-width');
     case 'zoom-fit-page': return setZoom('page-fit');
     case 'toggle-sidebar': return toggleSidebar();
+    case 'toggle-markups-list': return markupsList.toggle();
     case 'find': return openFind();
     case 'close-tab': return activeTab && closeTab(activeTab);
     case 'save': return save(activeTab);

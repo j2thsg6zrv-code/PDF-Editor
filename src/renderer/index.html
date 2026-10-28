@@ -60,6 +60,8 @@
   <div id="propbar" hidden>
     <span id="prop-title"></span>
     <label data-prop="stamp">Stamp <select id="prop-stamp"></select></label>
+    <label data-prop="scale">Scale <select id="prop-scale"></select></label>
+    <label data-prop="scale"><input id="prop-scale-all" type="checkbox"> All pages</label>
     <label data-prop="color">Color <input id="prop-color" type="color"></label>
     <label data-prop="fill"><input id="prop-fill-on" type="checkbox"> Fill <input id="prop-fill" type="color"></label>
     <label data-prop="width">Line
@@ -102,6 +104,7 @@
 
   <main id="workspace">
     <aside id="sidebar"></aside>
+    <section id="main-col">
     <section id="viewers">
       <div id="welcome">
         <div class="welcome-card">
@@ -111,10 +114,55 @@
         </div>
       </div>
     </section>
+    <section id="markups-panel" hidden>
+      <div class="panel-header">
+        <strong id="ml-title">Markups</strong>
+        <select id="ml-type" aria-label="Filter by type"></select>
+        <label><input id="ml-page-only" type="checkbox"> This page only</label>
+        <input id="ml-search" type="search" placeholder="Search" aria-label="Search markups">
+        <span class="spacer"></span>
+        <button id="ml-export">Export CSV…</button>
+        <button id="ml-close" class="icon" title="Close (⌘L)">✕</button>
+      </div>
+      <div class="panel-body">
+        <table id="ml-table">
+          <thead><tr></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p id="ml-empty">No markups yet.</p>
+      </div>
+      <div id="ml-totals"></div>
+    </section>
+    </section>
   </main>
+
+  <dialog id="calibrate-dialog">
+    <form method="dialog">
+      <h2>Calibrate scale</h2>
+      <p>The line you drew is <strong id="cal-sheet"></strong> long on the sheet. How long is it in reality?</p>
+      <div class="cal-row">
+        <input id="cal-length" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 20 or 12'6&quot;">
+        <select id="cal-unit">
+          <option value="ft">feet</option>
+          <option value="in">inches</option>
+          <option value="m">meters</option>
+          <option value="cm">centimeters</option>
+          <option value="mm">millimeters</option>
+        </select>
+      </div>
+      <label><input id="cal-all" type="checkbox" checked> Use this scale on all pages</label>
+      <p id="cal-error" role="alert"></p>
+      <div class="dialog-buttons">
+        <button value="cancel" formnovalidate>Cancel</button>
+        <button value="ok" class="primary">Set Scale</button>
+      </div>
+    </form>
+  </dialog>
 
   <footer id="statusbar">
     <span id="status-file"></span>
+    <span id="status-scale"></span>
+    <button id="btn-markups-list" class="status-button" title="Markups List (⌘L)">Markups List</button>
     <span id="status-size"></span>
   </footer>
 

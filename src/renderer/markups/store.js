@@ -1,21 +1,31 @@
-// The markups of one document, with undo/redo.
+// The markups and page scales of one document, with undo/redo.
 
 const UNDO_LIMIT = 200;
 
 export class MarkupStore {
-  #markups = [];
+  // One immutable snapshot of everything undoable: { markups: [], scales: { [pageIndex]: scale } }.
+  #state;
   #undo = [];
   #redo = [];
   #listeners = new Set();
   #savedVersion = 0;
   #version = 0;
 
-  constructor(initial = []) {
-    this.#markups = initial;
+  constructor(markups = [], scales = {}) {
+    this.#state = { markups, scales };
   }
 
   get all() {
-    return this.#markups;
+    return this.#state.markups;
+  }
+
+  get scales() {
+    return this.#state.scales;
+  }
+
+  /** The scale set on a page, or null if it isn't calibrated. */
+  scaleFor(pageIndex) {
+    return this.#state.scales[pageIndex] ?? null;
   }
 
   get dirty() {
@@ -31,81 +41,107 @@ export class MarkupStore {
   }
 
   get(id) {
-    return this.#markups.find((m) => m.id === id);
+    return this.#state.markups.find((m) => m.id === id);
   }
 
   onPage(pageIndex) {
-    return this.#markups.filter((m) => m.page === pageIndex);
+    return this.#state.markups.filter((m) => m.page === pageIndex);
   }
 
+  /** Listener gets (pages changed, { scales: bool }). */
   onChange(listener) {
     this.#listeners.add(listener);
   }
 
   add(markup) {
-    this.#apply([...this.#markups, markup], [markup.page]);
+    this.#apply({ ...this.#state, markups: [...this.#state.markups, markup] }, [markup.page]);
   }
 
   /** Replaces markups by id. Pass the full new objects. */
   replace(updated) {
     const byId = new Map(updated.map((m) => [m.id, m]));
     const pages = new Set(updated.map((m) => m.page));
-    for (const m of this.#markups) if (byId.has(m.id)) pages.add(m.page);
+    for (const m of this.#state.markups) if (byId.has(m.id)) pages.add(m.page);
     this.#apply(
-      this.#markups.map((m) => byId.get(m.id) ?? m),
+      { ...this.#state, markups: this.#state.markups.map((m) => byId.get(m.id) ?? m) },
       [...pages],
     );
   }
 
   remove(ids) {
     const set = new Set(ids);
-    const pages = this.#markups.filter((m) => set.has(m.id)).map((m) => m.page);
+    const pages = this.#state.markups.filter((m) => set.has(m.id)).map((m) => m.page);
     if (!pages.length) return;
     this.#apply(
-      this.#markups.filter((m) => !set.has(m.id)),
+      { ...this.#state, markups: this.#state.markups.filter((m) => !set.has(m.id)) },
       pages,
     );
+  }
+
+  /** Sets (or with null, clears) the scale of some pages. */
+  setScale(pageIndexes, scale) {
+    const scales = { ...this.#state.scales };
+    for (const i of pageIndexes) {
+      if (scale) scales[i] = scale;
+      else delete scales[i];
+    }
+    this.#apply({ ...this.#state, scales }, pageIndexes, true);
+  }
+
+  /**
+   * Replaces everything after a page operation (rotate, delete, reorder...).
+   * Page operations change the PDF itself, so they clear undo history.
+   */
+  reset(markups, scales) {
+    this.#state = { markups, scales };
+    this.#undo = [];
+    this.#redo = [];
+    this.#version = nextVersion();
+    this.#emit(null, true);
   }
 
   undo() {
     if (!this.#undo.length) return;
     const prev = this.#undo.pop();
-    this.#redo.push(this.#markups);
+    this.#redo.push(this.#state);
     this.#swap(prev);
   }
 
   redo() {
     if (!this.#redo.length) return;
     const next = this.#redo.pop();
-    this.#undo.push(this.#markups);
+    this.#undo.push(this.#state);
     this.#swap(next);
   }
 
   markSaved() {
     this.#savedVersion = this.#version;
-    this.#emit([]);
+    this.#emit([], false);
   }
 
-  #apply(next, pages) {
-    this.#undo.push(this.#markups);
+  #apply(next, pages, scalesChanged = false) {
+    this.#undo.push(this.#state);
     if (this.#undo.length > UNDO_LIMIT) this.#undo.shift();
     this.#redo = [];
-    this.#markups = next;
+    this.#state = next;
     this.#version = nextVersion();
-    this.#emit(pages);
+    this.#emit(pages, scalesChanged);
   }
 
   #swap(next) {
-    const pages = new Set([...this.#markups, ...next].map((m) => m.page));
-    this.#markups = next;
+    const scalesChanged = next.scales !== this.#state.scales;
+    const pages = new Set([...this.#state.markups, ...next.markups].map((m) => m.page));
+    if (scalesChanged) for (const k of Object.keys({ ...next.scales, ...this.#state.scales })) pages.add(Number(k));
+    this.#state = next;
     // Undo/redo can land back on the saved state, but tracking that exactly
     // isn't worth it: any undo/redo counts as a change.
     this.#version = nextVersion();
-    this.#emit([...pages]);
+    this.#emit([...pages], scalesChanged);
   }
 
-  #emit(pages) {
-    for (const listener of this.#listeners) listener(pages);
+  /** pages === null means every page. */
+  #emit(pages, scalesChanged) {
+    for (const listener of this.#listeners) listener(pages, { scales: scalesChanged });
   }
 }
 

@@ -18,7 +18,11 @@ import { SCREEN_FONT, sanitize } from './fonts.js';
 import { newId } from './store.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const DRAW_TOOLS = new Set(['pen', 'highlight', 'line', 'arrow', 'rect', 'ellipse', 'cloud', 'text', 'callout', 'stamp']);
+// Tools drawn with one press-drag-release.
+const DRAG_TOOLS = new Set(['pen', 'highlight', 'line', 'arrow', 'rect', 'ellipse', 'cloud', 'text', 'callout', 'stamp', 'length', 'calibrate']);
+// Tools drawn by clicking each vertex; double-click or Enter finishes.
+const POLY_TOOLS = new Set(['polylength', 'area', 'perimeter']);
+const MIN_VERTICES = { polylength: 2, area: 3, perimeter: 3 };
 const HIT_PX = 10; // how close (in screen pixels) a click must be to a thin line
 const HANDLE_PX = 8;
 const MIN_DRAG_PX = 3;
@@ -36,7 +40,7 @@ export class MarkupLayer {
    * @param {import('../document-tab.js').DocumentTab} opts.tab
    * @param {import('./store.js').MarkupStore} opts.store
    * @param {object} opts.ui  callbacks into the app: tool(), styleFor(type), stamp(), author(),
-   *                          onSelect(markup|null), onToolDone()
+   *                          onSelect(markup|null), onToolDone(), onCalibrate(pageIndex, points)
    */
   constructor({ tab, store, ui }) {
     this.tab = tab;
@@ -48,10 +52,13 @@ export class MarkupLayer {
     this.preview = null; // markup being moved/resized, drawn in place of the stored one
     this.draft = null; // markup being drawn
     this.gesture = null;
+    this.poly = null; // { index } while a click-by-click shape is being drawn
+    this.countId = null; // the count markup that further count clicks add to
 
     store.onChange((pages) => {
       if (this.selectedId && !store.get(this.selectedId)) this.select(null);
-      for (const p of pages) this.renderPage(p);
+      if (this.countId && !store.get(this.countId)) this.countId = null;
+      for (const p of pages ?? this.pages.keys()) this.renderPage(p);
       if (this.selectedId) this.ui.onSelect(store.get(this.selectedId));
     });
 
@@ -117,7 +124,7 @@ export class MarkupLayer {
     const els = [];
     const sel = this.preview?.id === this.selectedId ? this.preview : this.selected;
     if (sel && sel.page === index && this.editingId !== sel.id) {
-      const [x1, y1, x2, y2] = bounds(sel);
+      const [x1, y1, x2, y2] = bounds(sel, this.store.scaleFor(sel.page));
       els.push(
         svg('rect', {
           x: x1,
@@ -164,13 +171,17 @@ export class MarkupLayer {
     const hitWidth = Math.max(style.width || 0, HIT_PX / scale);
     const parts = outline(m);
     const hitD = [];
+    const hitAreas = [];
     for (const sub of parts) {
       const d = segsToSvg(sub.segs);
       hitD.push(d);
+      const fill = sub.fillColor ?? (sub.fill && style.fill ? style.fill : null);
+      if (fill) hitAreas.push(d);
       g.append(
         svg('path', {
           d,
-          fill: sub.fill && style.fill ? style.fill : 'none',
+          fill: fill ?? 'none',
+          'fill-opacity': fill && !sub.fillColor ? style.fillOpacity : null,
           stroke: sub.stroke && style.width > 0 ? style.color : 'none',
           'stroke-width': style.width,
           'stroke-linecap': cap,
@@ -179,7 +190,7 @@ export class MarkupLayer {
       );
     }
     if (this.editingId !== m.id) {
-      const lines = textLines(m);
+      const lines = textLines(m, this.store.scaleFor(m.page));
       if (lines.length) {
         // Text is drawn in a y-down group so glyphs aren't mirrored.
         const tg = svg('g', { transform: 'scale(1 -1)', fill: style.color, 'font-family': SCREEN_FONT });
@@ -194,7 +205,8 @@ export class MarkupLayer {
     if (!isDraft) {
       // Invisible, wider copies of the shape make thin lines easy to click.
       g.append(svg('path', { d: hitD.join(' '), class: 'markup-hit', 'stroke-width': hitWidth }));
-      if (TEXT_TYPES.has(m.type) || m.type === 'stamp' || style.fill) {
+      for (const d of hitAreas) g.append(svg('path', { d, class: 'markup-hit-area' }));
+      if (TEXT_TYPES.has(m.type) || m.type === 'stamp') {
         const [x1, y1, x2, y2] = boxOf(m);
         g.append(svg('rect', { x: x1, y: y1, width: x2 - x1, height: y2 - y1, class: 'markup-hit-area' }));
       }
@@ -242,8 +254,24 @@ export class MarkupLayer {
       const tool = this.ui.tool();
       const pt = this.#toPdf(entry, e);
       if (this.editingId) this.#commitEditor();
+      // preventDefault below stops the click from taking focus; take it from the
+      // properties bar ourselves so single-key tool shortcuts keep working.
+      if (document.activeElement?.closest?.('#propbar, #markups-panel')) this.tab.container.focus({ preventScroll: true });
 
-      if (DRAW_TOOLS.has(tool)) {
+      if (POLY_TOOLS.has(tool)) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.select(null);
+        this.#polyClick(index, tool, pt, e);
+        return;
+      }
+      if (tool === 'count') {
+        e.preventDefault();
+        e.stopPropagation();
+        this.#countClick(index, pt);
+        return;
+      }
+      if (DRAG_TOOLS.has(tool)) {
         e.preventDefault();
         e.stopPropagation();
         el.setPointerCapture(e.pointerId);
@@ -268,6 +296,15 @@ export class MarkupLayer {
     });
 
     el.addEventListener('pointermove', (e) => {
+      if (this.poly?.index === index && this.draft) {
+        // Rubber-band the next segment to the pointer.
+        const pts = this.draft.points;
+        const prev = pts[pts.length - 2];
+        const pt = this.#toPdf(entry, e);
+        this.draft = { ...this.draft, points: [...pts.slice(0, -1), e.shiftKey ? snapAngle(prev, pt) : pt] };
+        this.#renderDraft(index);
+        return;
+      }
       if (!this.gesture || this.gesture.index !== index) return;
       const pt = this.#toPdf(entry, e);
       const g = this.gesture;
@@ -306,6 +343,84 @@ export class MarkupLayer {
       const m = this.selected;
       if (m && m.page === index && TEXT_TYPES.has(m.type)) this.editText(m.id);
     });
+  }
+
+  // ---------- Click-by-click shapes and counts ----------
+
+  #newMarkup(index, type, points) {
+    const now = new Date().toISOString();
+    return { id: newId(), page: index, type, style: { ...this.ui.styleFor(type) }, author: this.ui.author(), created: now, modified: now, points };
+  }
+
+  #polyClick(index, tool, pt, e) {
+    if (this.poly && this.poly.index !== index) this.finishPoly();
+    if (!this.poly) {
+      this.poly = { index };
+      this.draft = this.#newMarkup(index, tool, [pt, pt]);
+    } else if (e.detail >= 2) {
+      // The first click of the double-click already placed the last vertex.
+      this.finishPoly();
+      return;
+    } else {
+      const pts = this.draft.points;
+      const fixed = e.shiftKey ? snapAngle(pts[pts.length - 2], pt) : pt;
+      this.draft = { ...this.draft, points: [...pts.slice(0, -1), fixed, fixed] };
+    }
+    this.#renderDraft(index);
+  }
+
+  get drawingPoly() {
+    return !!this.poly;
+  }
+
+  /** Ends the shape being clicked out, keeping it if it has enough vertices. */
+  finishPoly() {
+    if (!this.poly) return;
+    const { index } = this.poly;
+    let m = this.draft;
+    this.poly = null;
+    this.draft = null;
+    this.#renderDraft(index);
+    const points = dedupe(m.points.slice(0, -1)); // drop the rubber-band point
+    if (points.length < MIN_VERTICES[m.type]) return;
+    m = { ...m, points };
+    this.store.add(m);
+    this.select(m.id);
+    this.ui.onToolDone(m.type);
+  }
+
+  cancelPoly() {
+    if (!this.poly) return;
+    const { index } = this.poly;
+    this.poly = null;
+    this.draft = null;
+    this.#renderDraft(index);
+  }
+
+  /** Removes the last clicked vertex. */
+  undoVertex() {
+    if (!this.poly) return;
+    const pts = this.draft.points;
+    if (pts.length <= 2) return this.cancelPoly();
+    this.draft = { ...this.draft, points: [...pts.slice(0, -2), pts[pts.length - 1]] };
+    this.#renderDraft(this.poly.index);
+  }
+
+  #countClick(index, pt) {
+    const current = this.countId && this.store.get(this.countId);
+    if (current && current.page === index) {
+      this.store.replace([{ ...current, points: [...current.points, pt], modified: new Date().toISOString() }]);
+    } else {
+      const m = this.#newMarkup(index, 'count', [pt]);
+      this.store.add(m);
+      this.countId = m.id;
+    }
+  }
+
+  /** Called when the tool changes: finishes anything in progress. */
+  endTool() {
+    this.finishPoly();
+    this.countId = null;
   }
 
   #startDraw(index, tool, pt, e) {
@@ -355,6 +470,12 @@ export class MarkupLayer {
       return;
     }
 
+    if (m.type === 'calibrate') {
+      if (g.moved && !tiny(m.points[0], m.points[1])) {
+        this.ui.onCalibrate(index, Math.hypot(m.points[1][0] - m.points[0][0], m.points[1][1] - m.points[0][1]));
+      }
+      return;
+    }
     if (m.type !== 'stamp') {
       if (!g.moved) return;
       if (m.points.length < 2 || tiny(m.points[0], m.points[m.points.length - 1]) && m.points.length <= 2) return;
@@ -483,6 +604,8 @@ function updateDraft(m, g, pt, constrain) {
       return { ...m, points: [m.points[0], pt, pt] };
     case 'line':
     case 'arrow':
+    case 'length':
+    case 'calibrate':
       return { ...m, points: [g.start, constrain ? snapAngle(g.start, pt) : pt] };
     default:
       return { ...m, points: [g.start, constrain ? squareUp(g.start, pt) : pt] };
@@ -518,7 +641,13 @@ function handlesFor(m) {
   switch (m.type) {
     case 'line':
     case 'arrow':
+    case 'length':
       return m.points.map((point, i) => ({ key: `p${i}`, point }));
+    case 'polylength':
+    case 'area':
+    case 'perimeter':
+    case 'count':
+      return m.points.map((point, i) => ({ key: `v${i}`, point }));
     case 'rect':
     case 'ellipse':
     case 'cloud':
@@ -533,6 +662,13 @@ function handlesFor(m) {
 
 function resize(m, key, pt, constrain) {
   if (key === 'tip') return { ...m, points: [pt, m.points[1], m.points[2]] };
+  if (key[0] === 'v') {
+    const i = Number(key.slice(1));
+    const points = [...m.points];
+    const prev = points[i - 1];
+    points[i] = constrain && prev ? snapAngle(prev, pt) : pt;
+    return { ...m, points };
+  }
   if (key[0] === 'p') {
     const i = Number(key.slice(1));
     const other = m.points[1 - i];
@@ -562,6 +698,11 @@ function fitTextBox(m, onlyGrow = false) {
     [box[2], box[3]],
   ];
   return { ...m, points: m.type === 'callout' ? [m.points[0], ...pts] : pts };
+}
+
+// Drops vertices that land on the previous one (e.g. from a double-click).
+function dedupe(points) {
+  return points.filter((p, i) => i === 0 || Math.hypot(p[0] - points[i - 1][0], p[1] - points[i - 1][1]) > 0.01);
 }
 
 // Ramer–Douglas–Peucker: drop freehand points that don't change the shape.

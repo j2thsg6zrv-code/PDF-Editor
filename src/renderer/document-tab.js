@@ -56,10 +56,10 @@ export class DocumentTab {
   async load() {
     // Our own markups come out of the file into the editable layer; the rest
     // of the PDF (including other apps' annotations) is what pdf.js draws.
-    const { base, markups, editable } = await extractMarkups(this.data);
+    const { base, markups, scales, editable } = await extractMarkups(this.data);
     this.base = base;
     this.editable = editable;
-    this.store = new MarkupStore(markups);
+    this.store = new MarkupStore(markups, scales);
     this.markups = new MarkupLayer({ tab: this, store: this.store, ui: this.markupUi });
     this.container.addEventListener('pointerdown', (e) => {
       if (!e.target.closest('.markup, [data-handle], .markup-editor')) this.markups.select(null);
@@ -83,7 +83,7 @@ export class DocumentTab {
   async save(filePath = this.path) {
     if (!this.editable) throw new Error('This PDF is encrypted, so markups cannot be saved into it.');
     this.markups.commitEditing();
-    const bytes = await writeMarkups(this.base, this.store.all);
+    const bytes = await writeMarkups(this.base, this.store.all, this.store.scales);
     await window.desktop.saveFile(filePath, bytes);
     if (filePath !== this.path) {
       this.path = filePath;
@@ -91,6 +91,11 @@ export class DocumentTab {
     }
     this.size = bytes.byteLength;
     this.store.markSaved();
+  }
+
+  /** Zero-based index of the page currently in view. */
+  get currentPageIndex() {
+    return this.viewer.currentPageNumber - 1;
   }
 
   get pageCount() {

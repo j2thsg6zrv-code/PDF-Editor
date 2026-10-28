@@ -121,6 +121,7 @@ function buildMenu() {
         { label: 'Fit Page', accelerator: 'CmdOrCtrl+1', click: () => sendCommand('zoom-fit-page') },
         { type: 'separator' },
         { label: 'Toggle Thumbnails', accelerator: 'CmdOrCtrl+T', click: () => sendCommand('toggle-sidebar') },
+        { label: 'Toggle Markups List', accelerator: 'CmdOrCtrl+L', click: () => sendCommand('toggle-markups-list') },
         { type: 'separator' },
         { label: 'Next Tab', accelerator: 'Ctrl+Tab', click: () => sendCommand('next-tab') },
         { label: 'Previous Tab', accelerator: 'Ctrl+Shift+Tab', click: () => sendCommand('prev-tab') },
@@ -147,11 +148,15 @@ ipcMain.handle('app:user', () => {
     return '';
   }
 });
-ipcMain.handle('dialog:save-as', async (_event, defaultPath) => {
+ipcMain.handle('dialog:save-as', async (_event, defaultPath, kind = 'pdf') => {
+  const filters = {
+    pdf: [{ name: 'PDF Documents', extensions: ['pdf'] }],
+    csv: [{ name: 'CSV (opens in Excel)', extensions: ['csv'] }],
+  };
   const result = await dialog.showSaveDialog(mainWindow, {
-    title: 'Save PDF',
+    title: kind === 'csv' ? 'Export Markups' : 'Save PDF',
     defaultPath,
-    filters: [{ name: 'PDF Documents', extensions: ['pdf'] }],
+    filters: filters[kind] ?? filters.pdf,
   });
   return result.canceled ? null : result.filePath;
 });

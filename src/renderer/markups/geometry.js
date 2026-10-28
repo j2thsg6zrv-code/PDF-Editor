@@ -1,6 +1,7 @@
 // Shape geometry shared by the on-screen layer and the PDF writer.
 // All coordinates are PDF user space (points, y axis pointing up).
 import { wrapText, textWidth } from './fonts.js';
+import { measurement, MEASURE_TYPES } from './measure.js';
 
 export const TEXT_PADDING = 4;
 export const LINE_HEIGHT = 1.2;
@@ -19,16 +20,32 @@ export function boxOf(m) {
 
 export const BOX_TYPES = new Set(['rect', 'ellipse', 'cloud', 'text', 'callout', 'stamp']);
 export const TEXT_TYPES = new Set(['text', 'callout']);
-export const FILLABLE_TYPES = new Set(['rect', 'ellipse', 'cloud', 'text', 'callout']);
+export const FILLABLE_TYPES = new Set(['rect', 'ellipse', 'cloud', 'text', 'callout', 'area']);
+const TICK = 6; // half-length of the end ticks on a length measurement
+const COUNT_RADIUS = 6;
 
-/** Bounding box [x1, y1, x2, y2] including stroke width and decorations. */
-export function bounds(m) {
-  let xs = m.points.map((p) => p[0]);
-  let ys = m.points.map((p) => p[1]);
+/**
+ * Bounding box [x1, y1, x2, y2] including stroke width, decorations and
+ * labels. pageScale is the page's measurement scale (only measurements use it).
+ */
+export function bounds(m, pageScale = null) {
+  const xs = m.points.map((p) => p[0]);
+  const ys = m.points.map((p) => p[1]);
   let pad = (m.style.width || 0) / 2 + 1;
   if (m.type === 'arrow') pad += arrowSize(m.style.width);
   if (m.type === 'cloud') pad += cloudArc(m.style.width) / 2;
-  return [Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) + pad, Math.max(...ys) + pad];
+  if (m.type === 'length') pad += TICK;
+  if (m.type === 'count') pad += COUNT_RADIUS;
+  const box = [Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) + pad, Math.max(...ys) + pad];
+  if (MEASURE_TYPES.has(m.type)) {
+    for (const l of textLines(m, pageScale)) {
+      box[0] = Math.min(box[0], l.x - 1);
+      box[1] = Math.min(box[1], l.y - l.size * 0.25);
+      box[2] = Math.max(box[2], l.x + textWidth(l.text, l.size, l.bold) + 1);
+      box[3] = Math.max(box[3], l.y + l.size);
+    }
+  }
+  return box;
 }
 
 function arrowSize(width) {
@@ -79,6 +96,22 @@ export function outline(m) {
     }
     case 'stamp':
       return [{ segs: roundRectPath(boxOf(m), 4), stroke: true, fill: false }];
+    case 'length':
+    case 'calibrate': {
+      const [a, b] = m.points;
+      return [
+        { segs: polyline([a, b]), stroke: true, fill: false },
+        { segs: [...tick(a, b, a), ...tick(a, b, b)], stroke: true, fill: false },
+      ];
+    }
+    case 'polylength':
+      return [{ segs: polyline(m.points), stroke: true, fill: false }];
+    case 'area':
+    case 'perimeter':
+      return [{ segs: [...polyline(m.points), ['Z']], stroke: true, fill: filled }];
+    case 'count':
+      // Count markers are solid dots in the markup color.
+      return m.points.map((p) => ({ segs: ellipsePath([p[0] - COUNT_RADIUS, p[1] - COUNT_RADIUS, p[0] + COUNT_RADIUS, p[1] + COUNT_RADIUS]), stroke: false, fill: true, fillColor: style.color }));
     default:
       return [];
   }
@@ -103,6 +136,19 @@ export function nearestEdgeMidpoint([x1, y1, x2, y2], [tx, ty]) {
     }
   }
   return best;
+}
+
+// Short line across the end of a measured line, at 'at'.
+function tick(a, b, at) {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = (-dy / len) * TICK;
+  const ny = (dx / len) * TICK;
+  return [
+    ['M', at[0] - nx, at[1] - ny],
+    ['L', at[0] + nx, at[1] + ny],
+  ];
 }
 
 function polyline(points) {
@@ -203,11 +249,12 @@ export function segsToSvg(segs) {
 }
 
 /**
- * Text layout for text boxes, callouts and stamps.
+ * Text layout for text boxes, callouts, stamps and measurement labels.
  * Returns [{ text, x, y, size, bold }] with baselines in PDF space.
  */
-export function textLines(m) {
+export function textLines(m, pageScale = null) {
   if (m.type === 'stamp') return stampLines(m);
+  if (MEASURE_TYPES.has(m.type)) return measureLines(m, pageScale);
   if (!TEXT_TYPES.has(m.type) || !m.text) return [];
   const [x1, , x2, y2] = boxOf(m);
   const size = m.style.fontSize;
@@ -219,6 +266,32 @@ export function textLines(m) {
     size,
     bold: false,
   }));
+}
+
+function measureLines(m, pageScale) {
+  const result = measurement(m, pageScale);
+  if (!result || m.points.length < 2 && m.type !== 'count') return [];
+  const size = m.style.fontSize || 10;
+  const text = m.type === 'count' ? `Count: ${result.text}` : result.text;
+  const w = textWidth(text, size, true);
+  let at;
+  if (m.type === 'length') {
+    const [a, b] = m.points;
+    at = [(a[0] + b[0]) / 2 - w / 2, (a[1] + b[1]) / 2 + 4];
+  } else if (m.type === 'area' || m.type === 'perimeter') {
+    const [cx, cy] = centroid(m.points);
+    at = [cx - w / 2, cy - size / 3];
+  } else {
+    const last = m.points[m.points.length - 1];
+    at = [last[0] + COUNT_RADIUS + 3, last[1] + 3];
+  }
+  return [{ text, x: at[0], y: at[1], size, bold: true }];
+}
+
+function centroid(points) {
+  const xs = points.map((p) => p[0]);
+  const ys = points.map((p) => p[1]);
+  return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
 }
 
 /** Height a text box needs to show all of its text at its current width. */
