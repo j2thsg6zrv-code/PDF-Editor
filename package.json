@@ -6,7 +6,7 @@
   "main": "src/main/main.js",
   "scripts": {
     "start": "electron .",
-    "dist:mac": "electron-builder --mac --publish never",
+    "dist:mac": "electron-builder --mac --x64 --arm64 --publish never",
     "dist:win": "electron-builder --win --publish never"
   },
   "license": "UNLICENSED",
@@ -32,11 +32,7 @@
       "identity": null,
       "target": [
         {
-          "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
+          "target": "dmg"
         }
       ]
     },
