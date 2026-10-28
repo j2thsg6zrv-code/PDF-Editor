@@ -18,7 +18,7 @@ export const TOOLS = [
   { id: 'rect', key: 'r', label: 'Rectangle', hint: 'Shift for a square', icon: ICON('<rect x="2.5" y="3.5" width="11" height="9"/>') },
   { id: 'ellipse', key: 'e', label: 'Ellipse', hint: 'Shift for a circle', icon: ICON('<ellipse cx="8" cy="8" rx="5.8" ry="4.6"/>') },
   { id: 'cloud', key: 'c', label: 'Cloud', icon: ICON('<path d="M4 12.5a2 2 0 01-1-3.7 2.2 2.2 0 012.6-3.3 3 3 0 015.6.2 2.2 2.2 0 012.3 3.2A2 2 0 0112.5 12.5z"/>') },
-  { id: 'text', key: 't', label: 'Text box', icon: ICON('<path d="M3.5 4V3h9v1M8 3v10M6 13h4"/>') },
+  { id: 'text', key: 't', label: 'Text box', ribbonLabel: 'Text Box', icon: ICON('<path d="M3.5 4V3h9v1M8 3v10M6 13h4"/>') },
   { id: 'callout', key: 'q', label: 'Callout', hint: 'drag from the point to the text', icon: ICON('<rect x="6.5" y="2.5" width="7.5" height="5"/><path d="M6.5 6.5L2 13.5"/>') },
   { id: 'stamp', key: 's', label: 'Stamp', icon: ICON('<path d="M6 2.5h4l-.8 5h-2.4zM3 9.5h10v2.5H3zM4 14h8"/>') },
   { separator: true },
@@ -27,7 +27,7 @@ export const TOOLS = [
   { id: 'area', key: 'b', label: 'Area', hint: 'click each corner, double-click to finish', icon: ICON('<path d="M2.5 12.5l2-9 9 2-2 7z" fill="currentColor" fill-opacity=".25"/>') },
   { id: 'perimeter', key: 'o', label: 'Perimeter', hint: 'click each corner, double-click to finish', icon: ICON('<path d="M2.5 12.5l2-9 9 2-2 7z" stroke-dasharray="2 1.5"/>') },
   { id: 'count', key: 'k', label: 'Count', hint: 'click each item; switch tools to start a new count', icon: ICON('<circle cx="4.5" cy="5" r="1.6" fill="currentColor"/><circle cx="11" cy="5" r="1.6" fill="currentColor"/><circle cx="7.8" cy="11" r="1.6" fill="currentColor"/>') },
-  { id: 'calibrate', key: 'x', label: 'Calibrate scale', hint: 'drag along a known dimension', icon: ICON('<path d="M2 11.5L11.5 2l2.5 2.5L4.5 14z"/><path d="M5 9.5l1 1M7 7.5l1.5 1.5M9 5.5l1 1"/>') },
+  { id: 'calibrate', key: 'x', label: 'Calibrate scale', ribbonLabel: 'Calibrate', hint: 'drag along a known dimension', icon: ICON('<path d="M2 11.5L11.5 2l2.5 2.5L4.5 14z"/><path d="M5 9.5l1 1M7 7.5l1.5 1.5M9 5.5l1 1"/>') },
 ];
 
 export const STAMPS = [
@@ -139,23 +139,15 @@ export class MarkupUi {
     return TOOLS.find((t) => t.key === key.toLowerCase())?.id;
   }
 
+  /** Wires the tool buttons the ribbon placed (a tool can appear on several ribbon tabs). */
   #buildToolButtons() {
-    const host = $('tool-buttons');
-    this.toolButtons = [];
-    for (const t of TOOLS) {
-      if (t.separator) {
-        host.append(Object.assign(document.createElement('span'), { className: 'tool-sep' }));
-        continue;
-      }
-      const btn = document.createElement('button');
-      btn.className = 'icon tool' + (t.id === this.current ? ' active' : '');
-      btn.dataset.tool = t.id;
-      btn.innerHTML = t.icon;
+    this.toolButtons = [...document.querySelectorAll('button[data-tool]')];
+    for (const btn of this.toolButtons) {
+      const t = TOOLS.find((x) => x.id === btn.dataset.tool);
+      btn.classList.add('tool');
+      btn.classList.toggle('active', t.id === this.current);
       btn.title = `${t.label} (${t.key.toUpperCase()})${t.hint ? ` — ${t.hint}` : ''}`;
-      btn.setAttribute('aria-label', t.label);
       btn.addEventListener('click', () => this.setTool(t.id));
-      host.append(btn);
-      this.toolButtons.push(btn);
     }
   }
 
