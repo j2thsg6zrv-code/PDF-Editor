@@ -10,7 +10,7 @@ and [pdf-lib](https://pdf-lib.js.org/). macOS first, Windows later.
 1. **Viewer** — open PDFs in tabs, zoom, pan, page thumbnails, text search. ✅
 2. **Markups** — pen, highlighter, text, callouts, clouds, arrows, shapes, stamps; saved into the PDF. ✅
 3. **Measurement and takeoff** — scale calibration, length, area, perimeter, count; Markups List with CSV/Excel export. ✅
-4. **Document tools** — merge, split, insert, rotate, reorder pages; compare and overlay revisions.
+4. **Document tools** — insert, extract, delete, rotate and reorder pages; compare and overlay revisions. ✅
 
 ## Installing on a Mac
 
@@ -103,3 +103,28 @@ markup, or for the next one you draw with the current tool.
 Markups are saved into the PDF as standard annotations (ink, line, square, circle,
 free text, stamp) with their own appearance, so they show up in Preview, Acrobat,
 Bluebeam and other readers. When you reopen the file here they come back editable.
+
+## Pages
+
+The buttons above the thumbnails (and the **Pages** menu) work on the selected
+thumbnails, or on the page in view when none are selected. Click a thumbnail to go to
+it, ⌘-click to pick several, Shift-click to pick a range.
+
+| Action | How |
+| --- | --- |
+| Rotate | ↺ / ↻, or ⌘R and ⇧⌘R |
+| Reorder | Drag thumbnails to a new position |
+| Insert pages | **＋** picks a PDF and inserts it after the page in view, or drag a PDF from Finder onto the thumbnails |
+| Extract pages | **⇪** saves the chosen pages, with their markups, as a new PDF |
+| Delete pages | **🗑** (asks first) |
+
+Markups and scales move with their pages. Page changes aren't written to disk until you
+save, and they clear the undo history.
+
+## Compare revisions
+
+**Pages → Compare Documents…** compares two open PDFs page by page (or use **Open
+Another PDF…** in the dialog). **Overlay** shows the old version in red and the new one in
+blue, with unchanged linework in black. **Differences** boxes each changed area on the new
+version, and **Cloud changes in new version** adds a revision cloud around every change as
+a markup, ready to review and save.

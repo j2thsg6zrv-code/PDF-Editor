@@ -3,6 +3,7 @@ import { pdfjsLib, viewerLib } from './pdfjs.js';
 import { MarkupStore } from './markups/store.js';
 import { MarkupLayer } from './markups/layer.js';
 import { extractMarkups, writeMarkups } from './markups/pdf-io.js';
+import * as pageOps from './page-ops.js';
 
 const THUMB_WIDTH = 120;
 
@@ -45,10 +46,10 @@ export class DocumentTab {
     this.linkService.setViewer(this.viewer);
 
     this.thumbs = [];
-    this.thumbObserver = new IntersectionObserver((entries) => this.#onThumbsVisible(entries), {
-      root: sidebarEl,
-      rootMargin: '200px 0px',
-    });
+    this.sidebarEl = sidebarEl;
+    this.selectedPages = new Set(); // zero-based indexes picked in the thumbnail strip
+    this.#newThumbObserver();
+    this.#wireThumbDrag();
 
     this.eventBus.on('pagechanging', ({ pageNumber }) => this.#markActiveThumb(pageNumber));
   }
@@ -73,6 +74,82 @@ export class DocumentTab {
     await new Promise((resolve) => this.eventBus.on('pagesinit', resolve, { once: true }));
     this.viewer.currentScaleValue = 'page-width';
     this.#buildThumbs();
+  }
+
+  // ---------- Page operations ----------
+
+  /** Pages the page tools act on: the thumbnail selection, else the page in view. */
+  get targetPages() {
+    return this.selectedPages.size ? [...this.selectedPages].sort((a, b) => a - b) : [this.currentPageIndex];
+  }
+
+  rotatePages(delta, pages = this.targetPages) {
+    return this.#pageOp(() => pageOps.rotatePages(this.base, pages, delta), pages);
+  }
+
+  deletePages(pages = this.targetPages) {
+    const first = Math.min(...pages);
+    return this.#pageOp(() => pageOps.deletePages(this.base, pages), [], Math.min(first, this.pageCount - pages.length - 1));
+  }
+
+  movePages(pages, target) {
+    return this.#pageOp(() => pageOps.movePages(this.base, pages, target), pages);
+  }
+
+  /** Inserts another PDF's pages before page index 'at'. */
+  insertFile(bytes, at) {
+    return this.#pageOp(() => pageOps.insertPages(this.base, bytes, at), null, at);
+  }
+
+  /** A new PDF (bytes) containing just these pages and their markups. */
+  extractPages(pages = this.targetPages) {
+    this.markups.commitEditing();
+    return pageOps.extractPages(this.base, pages, this.store.all, this.store.scales);
+  }
+
+  /**
+   * Runs a page operation, carries markups and scales to their new pages, and
+   * reloads the view. selectAfter: old indexes to keep selected (null keeps
+   * nothing); focus: new index of the page to show.
+   */
+  async #pageOp(run, selectAfter = null, focus = null) {
+    this.markups.commitEditing();
+    const result = await run();
+    if (!result) return;
+    const { markups, scales } = pageOps.remap(result.map, this.store.all, this.store.scales);
+    if (result.inserted) {
+      markups.push(...result.inserted.markups);
+      Object.assign(scales, result.inserted.scales);
+    }
+    const keep = selectAfter ? selectAfter.map((i) => result.map[i]).filter((i) => i != null) : [];
+    const page = focus ?? result.map[this.currentPageIndex] ?? 0;
+    await this.#reload(result.bytes, page);
+    this.selectedPages = new Set(keep);
+    this.#markActiveThumb(this.viewer.currentPageNumber);
+    this.store.reset(markups, scales);
+  }
+
+  /** Swaps in a new base PDF, keeping the zoom and showing page index 'page'. */
+  async #reload(bytes, page) {
+    const scaleValue = this.viewer.currentScaleValue;
+    const oldTask = this.loadingTask;
+    this.markups.resetPages();
+    this.base = bytes;
+    this.loadingTask = pdfjsLib.getDocument({ data: bytes.slice() });
+    this.pdf = await this.loadingTask.promise;
+    const ready = new Promise((resolve) => this.eventBus.on('pagesinit', resolve, { once: true }));
+    this.viewer.setDocument(this.pdf);
+    this.linkService.setDocument(this.pdf);
+    await ready;
+    this.viewer.currentScaleValue = scaleValue || 'page-width';
+    this.viewer.currentPageNumber = Math.min(Math.max(1, page + 1), this.pdf.numPages);
+    this.thumbObserver.disconnect();
+    this.#newThumbObserver();
+    this.thumbs = [];
+    this.thumbsEl.replaceChildren();
+    this.#buildThumbs();
+    oldTask?.destroy();
+    this.eventBus.dispatch('documentreloaded', { source: this });
   }
 
   get dirty() {
@@ -125,15 +202,111 @@ export class DocumentTab {
       label.className = 'thumb-label';
       label.textContent = String(i);
       item.append(frame, label);
-      item.addEventListener('click', () => {
-        this.viewer.currentPageNumber = i;
-      });
+      item.draggable = true;
+      item.addEventListener('click', (e) => this.#onThumbClick(i - 1, e));
 
       this.thumbsEl.append(item);
       this.thumbs.push({ item, frame, rendered: false });
       this.thumbObserver.observe(item);
     }
     this.#markActiveThumb(this.viewer.currentPageNumber);
+  }
+
+  #newThumbObserver() {
+    this.thumbObserver = new IntersectionObserver((entries) => this.#onThumbsVisible(entries), {
+      root: this.sidebarEl,
+      rootMargin: '200px 0px',
+    });
+  }
+
+  // Click shows a page; ⌘-click adds/removes it from the selection; Shift-click selects a range.
+  #onThumbClick(index, e) {
+    if (e.metaKey || e.ctrlKey) {
+      if (!this.selectedPages.size) this.selectedPages.add(this.currentPageIndex);
+      if (this.selectedPages.has(index)) this.selectedPages.delete(index);
+      else this.selectedPages.add(index);
+    } else if (e.shiftKey) {
+      const anchor = this.selectionAnchor ?? this.currentPageIndex;
+      this.selectedPages = new Set();
+      for (let i = Math.min(anchor, index); i <= Math.max(anchor, index); i++) this.selectedPages.add(i);
+    } else {
+      this.selectedPages = new Set();
+      this.selectionAnchor = index;
+      this.viewer.currentPageNumber = index + 1;
+    }
+    this.#markActiveThumb(this.viewer.currentPageNumber);
+    this.eventBus.dispatch('pageselectionchanged', { source: this });
+  }
+
+  // Drag thumbnails to reorder pages; drop PDF files from Finder to insert their pages.
+  #wireThumbDrag() {
+    const el = this.thumbsEl;
+    let indicator = null;
+    const dropIndex = (e) => {
+      const items = [...el.querySelectorAll('.thumb')];
+      for (const [i, item] of items.entries()) {
+        const r = item.getBoundingClientRect();
+        if (e.clientY < r.top + r.height / 2) return i;
+      }
+      return items.length;
+    };
+    const showIndicator = (index) => {
+      indicator ??= Object.assign(document.createElement('div'), { className: 'thumb-drop' });
+      const items = el.querySelectorAll('.thumb');
+      if (index < items.length) items[index].before(indicator);
+      else el.append(indicator);
+    };
+    const clear = () => {
+      indicator?.remove();
+      indicator = null;
+    };
+
+    el.addEventListener('dragstart', (e) => {
+      const item = e.target.closest('.thumb');
+      if (!item) return;
+      const index = Number(item.dataset.page) - 1;
+      if (!this.selectedPages.has(index)) {
+        this.selectedPages = new Set([index]);
+        this.#markActiveThumb(this.viewer.currentPageNumber);
+      }
+      this.dragging = [...this.selectedPages];
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('application/x-redline-pages', this.dragging.join(','));
+    });
+    el.addEventListener('dragend', () => {
+      this.dragging = null;
+      clear();
+    });
+    el.addEventListener('dragover', (e) => {
+      const isPages = !!this.dragging;
+      const isFile = e.dataTransfer.types.includes('Files');
+      if (!isPages && !isFile) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = isPages ? 'move' : 'copy';
+      showIndicator(dropIndex(e));
+    });
+    el.addEventListener('dragleave', (e) => {
+      if (!el.contains(e.relatedTarget)) clear();
+    });
+    el.addEventListener('drop', async (e) => {
+      const at = dropIndex(e);
+      clear();
+      e.preventDefault(); // tells the window's drop handler not to open these as tabs
+      if (this.dragging) {
+        const pages = this.dragging;
+        this.dragging = null;
+        await this.movePages(pages, at);
+        return;
+      }
+      for (const file of [...e.dataTransfer.files].reverse()) {
+        if (!file.name.toLowerCase().endsWith('.pdf')) continue;
+        try {
+          await this.insertFile(new Uint8Array(await file.arrayBuffer()), at);
+        } catch (err) {
+          window.desktop.showError('Could not insert pages', `${file.name}\n\n${err.message}`);
+        }
+      }
+    });
   }
 
   #onThumbsVisible(entries) {
@@ -171,6 +344,7 @@ export class DocumentTab {
     for (const [i, thumb] of this.thumbs.entries()) {
       const active = i + 1 === pageNumber;
       thumb.item.classList.toggle('active', active);
+      thumb.item.classList.toggle('selected', this.selectedPages.has(i));
       if (active && !this.thumbsEl.hidden) thumb.item.scrollIntoView({ block: 'nearest' });
     }
   }

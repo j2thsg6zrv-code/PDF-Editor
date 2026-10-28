@@ -130,6 +130,19 @@ function buildMenu() {
         { role: 'toggleDevTools' },
       ],
     },
+    {
+      label: 'Pages',
+      submenu: [
+        { label: 'Rotate Clockwise', accelerator: 'CmdOrCtrl+R', click: () => sendCommand('rotate-cw') },
+        { label: 'Rotate Counterclockwise', accelerator: 'CmdOrCtrl+Shift+R', click: () => sendCommand('rotate-ccw') },
+        { type: 'separator' },
+        { label: 'Insert Pages from File…', click: () => sendCommand('insert-pages') },
+        { label: 'Extract Pages…', click: () => sendCommand('extract-pages') },
+        { label: 'Delete Pages…', click: () => sendCommand('delete-pages') },
+        { type: 'separator' },
+        { label: 'Compare Documents…', click: () => sendCommand('compare') },
+      ],
+    },
     { role: 'windowMenu' },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
@@ -192,6 +205,26 @@ app.on('before-quit', () => {
   quitting = true;
 });
 ipcMain.handle('file:read', (_event, filePath) => readPdf(filePath));
+// Picks PDFs and hands their contents back without opening them in tabs (for inserting pages).
+ipcMain.handle('dialog:pick-pdfs', async (_event, title) => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title,
+    properties: ['openFile', 'multiSelections'],
+    filters: [{ name: 'PDF Documents', extensions: ['pdf'] }],
+  });
+  return result.canceled ? [] : Promise.all(result.filePaths.map(readPdf));
+});
+ipcMain.handle('dialog:confirm', async (_event, message, detail, confirmLabel) => {
+  const { response } = await dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    message,
+    detail,
+    buttons: [confirmLabel, 'Cancel'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  return response === 0;
+});
 
 // macOS delivers double-clicked / dragged-onto-dock files through this event.
 app.on('open-file', (event, filePath) => {
