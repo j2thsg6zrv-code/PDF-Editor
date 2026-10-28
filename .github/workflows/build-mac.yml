@@ -22,8 +22,12 @@ jobs:
 
       - run: npm ci
 
+      # One architecture at a time: both disk images use the same volume name,
+      # and building them together makes macOS fail to unmount one of them.
       - name: Build .dmg installers (Intel and Apple silicon)
-        run: npm run dist:mac
+        run: |
+          npx electron-builder --mac --x64 --publish never
+          npx electron-builder --mac --arm64 --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
