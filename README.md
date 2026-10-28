@@ -12,7 +12,20 @@ and [pdf-lib](https://pdf-lib.js.org/). macOS first, Windows later.
 3. **Measurement and takeoff** — scale calibration, length, area, perimeter, count; Markups List with CSV/Excel export. ✅
 4. **Document tools** — merge, split, insert, rotate, reorder pages; compare and overlay revisions.
 
-## Running it
+## Installing on a Mac
+
+Every change merged to `main` builds a Mac installer automatically (see the
+[latest release](../../releases/latest)):
+
+- Apple silicon Macs (M1 and newer): `Redline-PDF-Editor-arm64.dmg`
+- Intel Macs: `Redline-PDF-Editor-x64.dmg`
+
+Open the `.dmg` and drag **Redline PDF Editor** into **Applications**. The app isn't
+signed with an Apple Developer ID yet, so the first time you open it macOS blocks it:
+go to **System Settings → Privacy & Security**, scroll down, and click **Open Anyway**.
+After that it opens normally from Applications, Launchpad or the Dock.
+
+## Running from source
 
 You need [Node.js](https://nodejs.org/) 20 or newer.
 
@@ -21,14 +34,11 @@ npm install
 npm start
 ```
 
-To build a Mac installer (`.dmg` in `dist/`):
+To build the Mac installers yourself (`.dmg` files in `dist/`, on a Mac):
 
 ```sh
 npm run dist:mac
 ```
-
-The app is not code-signed yet, so the first time you open a built copy, right-click
-it in Finder and choose **Open**.
 
 ## Using the viewer
 
