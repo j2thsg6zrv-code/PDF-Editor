@@ -7,9 +7,10 @@
   --muted: #9a9ca3;
   --accent: #3b82f6;
   --accent-soft: rgba(59, 130, 246, 0.18);
-  --toolbar-h: 44px;
+  --brand: #2f7ae5; /* Bluebeam-style blue for the ribbon */
+  --brand-soft: rgba(47, 122, 229, 0.22);
   --tabbar-h: 32px;
-  --status-h: 24px;
+  --status-h: 28px;
   --sidebar-w: 180px;
 }
 
@@ -29,7 +30,7 @@ body {
   display: flex;
   flex-direction: column;
 }
-#toolbar { flex: 0 0 var(--toolbar-h); }
+#ribbon { flex: none; }
 #statusbar { flex: 0 0 var(--status-h); }
 
 button, select, input {
@@ -48,20 +49,103 @@ button.icon { width: 28px; padding: 0; }
 button.tool.active, button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
 input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
 
-/* Toolbar */
-#toolbar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 0 10px;
-  background: var(--panel);
+/* Ribbon */
+#ribbon {
+  background: var(--panel-2);
   border-bottom: 1px solid var(--border);
+}
+#ribbon-bar {
+  display: flex;
+  align-items: stretch;
+  height: 34px;
+  padding-left: 10px;
+  background: #16171a;
   -webkit-app-region: drag;
 }
-#toolbar .group { display: flex; align-items: center; gap: 4px; -webkit-app-region: no-drag; }
-#toolbar .spacer { flex: 1; -webkit-app-region: drag; }
-#page-number { width: 56px; text-align: right; padding: 0 6px; }
-#page-count { color: var(--muted); min-width: 36px; }
+#ribbon-bar .spacer { flex: 1; }
+#app-badge {
+  align-self: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 10px;
+  border-radius: 5px;
+  background: #d92d20;
+  color: #fff;
+  font: 700 12px/20px -apple-system, BlinkMacSystemFont, sans-serif;
+  text-align: center;
+}
+#app-badge::after { content: "R"; }
+#quick-access {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding-right: 10px;
+  margin-right: 6px;
+  border-right: 1px solid var(--border);
+  -webkit-app-region: no-drag;
+}
+.qa-btn { width: 28px; height: 26px; padding: 0; border-color: transparent; background: transparent; }
+.qa-btn svg { width: 16px; height: 16px; display: block; margin: auto; }
+.qa-btn span { display: none; }
+.qa-btn:hover { background: #2c2e34; }
+.qa-btn:disabled svg { opacity: 0.4; }
+#ribbon-tabs { display: flex; -webkit-app-region: no-drag; }
+.ribbon-tab {
+  height: auto;
+  padding: 0 16px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+.ribbon-tab:hover { background: #24262b; color: var(--text); }
+.ribbon-tab[aria-selected="true"] {
+  background: var(--panel-2);
+  color: var(--text);
+  box-shadow: inset 0 3px 0 var(--brand);
+}
+#ribbon-panel { height: 86px; -webkit-app-region: no-drag; }
+.ribbon-page { display: flex; height: 100%; padding: 4px 6px 0; overflow-x: auto; overflow-y: hidden; }
+.ribbon-page[hidden] { display: none; }
+.ribbon-group {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  padding: 0 6px;
+  border-right: 1px solid var(--border);
+}
+.ribbon-group:last-child { border-right: none; }
+.ribbon-items { display: flex; gap: 2px; flex: 1; }
+.ribbon-caption {
+  color: var(--muted);
+  font-size: 10.5px;
+  text-align: center;
+  padding: 1px 0 4px;
+  white-space: nowrap;
+}
+.rb-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  min-width: 58px;
+  height: 62px;
+  padding: 7px 6px 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 11.5px;
+  line-height: 1.15;
+}
+.rb-btn svg { width: 26px; height: 26px; flex: none; }
+.rb-btn span { white-space: nowrap; }
+.rb-btn:hover { background: #33363d; }
+.rb-btn.active, .rb-btn[aria-pressed="true"] { background: var(--brand-soft); border-color: var(--brand); }
+.rb-btn:disabled svg, .rb-btn:disabled span { opacity: 0.45; }
 body.no-doc [data-needs-doc] { opacity: 0.4; pointer-events: none; }
 
 /* Tabs */
@@ -191,8 +275,6 @@ body.dragging .welcome-card, body.dragging #viewers { outline: 2px dashed var(--
 }
 
 /* Tool buttons */
-#toolbar .tools { gap: 2px; }
-.tool-sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
 button.icon svg { display: block; margin: auto; }
 button:disabled { pointer-events: none; }
 
@@ -295,7 +377,13 @@ button:disabled { pointer-events: none; }
 #ml-totals:empty { display: none; }
 #ml-totals b { color: var(--text); font-weight: 600; }
 
-.status-button { height: 18px; padding: 0 8px; font-size: 11px; }
+.status-button { height: 20px; padding: 0 8px; font-size: 11px; }
+.status-group { display: flex; align-items: center; gap: 3px; margin-left: 10px; }
+.status-icon { height: 20px; min-width: 22px; padding: 0 4px; font-size: 13px; line-height: 1; border-color: transparent; background: transparent; }
+.status-icon:hover { background: #33363d; }
+#page-count { color: var(--muted); min-width: 30px; }
+#statusbar #page-number { text-align: right; padding: 0 4px; width: 48px; height: 20px; font-size: 12px; }
+#statusbar #zoom-select { height: 20px; font-size: 12px; padding: 0 4px; }
 #status-scale { margin-left: auto; margin-right: 12px; }
 #statusbar { gap: 8px; }
 #status-size { margin-left: 12px; }

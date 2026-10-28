@@ -42,6 +42,11 @@ npm run dist:mac
 
 ## Using the viewer
 
+The ribbon across the top works like Bluebeam Revu's: **Home** has the everyday tools,
+**Markup**, **Measure**, **Document** and **View** hold the rest, and the small buttons
+beside the logo (Open, Save, Undo, Redo) are always there. Page navigation and zoom are
+in the status bar at the bottom.
+
 | Action | Shortcut |
 | --- | --- |
 | Open PDF | ⌘O, or drag files onto the window |

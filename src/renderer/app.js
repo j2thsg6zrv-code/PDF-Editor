@@ -4,6 +4,7 @@ import { MarkupsList } from './markups-list.js';
 import { PAPER_SCALE } from './markups/measure.js';
 import { newId } from './markups/store.js';
 import { CompareTab } from './compare.js';
+import { buildRibbon, setToggle } from './ribbon.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -23,6 +24,10 @@ const els = {
   statusFile: $('status-file'),
   statusSize: $('status-size'),
 };
+
+// The ribbon has to exist before MarkupUi wires its tool buttons.
+buildRibbon((command) => runCommand(command));
+setToggle('toggle-sidebar', true);
 
 const tabs = [];
 let activeTab = null;
@@ -128,8 +133,8 @@ function undo(redo = false) {
 }
 
 function updateUndoButtons() {
-  $('btn-undo').disabled = !activeTab?.store?.canUndo;
-  $('btn-redo').disabled = !activeTab?.store?.canRedo;
+  for (const b of document.querySelectorAll('[data-command="undo"]')) b.disabled = !activeTab?.store?.canUndo;
+  for (const b of document.querySelectorAll('[data-command="redo"]')) b.disabled = !activeTab?.store?.canRedo;
 }
 
 function wireTabEvents(tab) {
@@ -519,18 +524,16 @@ function addCompareClouds(tab, byPage) {
 
 // ---------- Wiring ----------
 
-$('btn-open').addEventListener('click', () => window.desktop.openDialog());
 $('btn-open-welcome').addEventListener('click', () => window.desktop.openDialog());
-$('btn-sidebar').addEventListener('click', toggleSidebar);
-$('btn-save').addEventListener('click', () => save(activeTab));
 $('btn-markups-list').addEventListener('click', () => markupsList.toggle());
 $('btn-undo').addEventListener('click', () => undo());
 $('btn-redo').addEventListener('click', () => undo(true));
 $('btn-prev-page').addEventListener('click', () => activeTab?.viewer.previousPage());
 $('btn-next-page').addEventListener('click', () => activeTab?.viewer.nextPage());
+$('btn-first-page').addEventListener('click', () => goToPage(1));
+$('btn-last-page').addEventListener('click', () => goToPage(Infinity));
 $('btn-zoom-in').addEventListener('click', () => zoomBy(1));
 $('btn-zoom-out').addEventListener('click', () => zoomBy(-1));
-$('btn-find').addEventListener('click', openFind);
 $('pt-rotate-cw').addEventListener('click', () => pageCommand('rotate-cw'));
 $('pt-rotate-ccw').addEventListener('click', () => pageCommand('rotate-ccw'));
 $('pt-insert').addEventListener('click', () => pageCommand('insert-pages'));
@@ -560,7 +563,7 @@ els.findWord.addEventListener('change', () => runFind('entirewordchange'));
 
 function toggleSidebar() {
   const hidden = document.body.classList.toggle('sidebar-hidden');
-  $('btn-sidebar').setAttribute('aria-pressed', String(!hidden));
+  setToggle('toggle-sidebar', !hidden);
 }
 
 function isTyping(e) {
@@ -616,6 +619,8 @@ window.desktop.onMenuCommand((command) => {
 
 function runCommand(command) {
   switch (command) {
+    case 'open': return window.desktop.openDialog();
+    case 'export-csv': return activeTab?.store && markupsList.exportCsv();
     case 'zoom-in': return zoomBy(1);
     case 'zoom-out': return zoomBy(-1);
     case 'zoom-actual': return setZoom('1');

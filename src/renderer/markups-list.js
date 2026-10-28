@@ -3,6 +3,7 @@
 import { measurement, MEASURE_TYPES } from './markups/measure.js';
 import { TOOLS } from './markup-ui.js';
 import { bounds } from './markups/geometry.js';
+import { setToggle } from './ribbon.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -54,6 +55,7 @@ export class MarkupsList {
   toggle(show = !this.visible) {
     this.panel.hidden = !show;
     $('btn-markups-list').classList.toggle('active', show);
+    setToggle('toggle-markups-list', show);
     if (show) this.render();
   }
 
