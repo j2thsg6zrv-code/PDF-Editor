@@ -189,3 +189,68 @@ body.dragging .welcome-card, body.dragging #viewers { outline: 2px dashed var(--
   color: var(--muted);
   font-size: 12px;
 }
+
+/* Tool buttons */
+#toolbar .tools { gap: 2px; }
+.tool-sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+button.icon svg { display: block; margin: auto; }
+button:disabled { pointer-events: none; }
+
+/* Properties bar */
+#propbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 5px 10px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+}
+#propbar[hidden], #propbar [hidden] { display: none; }
+#propbar label { display: flex; align-items: center; gap: 6px; }
+#propbar input[type="color"] { width: 32px; height: 24px; padding: 1px 2px; }
+#propbar input[type="checkbox"] { height: auto; }
+#propbar input[type="range"] { width: 90px; padding: 0; border: none; background: transparent; }
+#propbar select { height: 24px; padding: 0 6px; }
+#prop-title { color: var(--text); font-weight: 600; min-width: 120px; line-height: 24px; }
+#prop-opacity-value { min-width: 34px; }
+#prop-delete { height: 24px; margin-left: auto; }
+
+/* Markup layer over each page */
+.markup-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  z-index: 10;
+  pointer-events: none;
+}
+.markup-layer .markup-hit { fill: none; stroke: transparent; pointer-events: stroke; }
+.markup-layer .markup-hit-area { fill: transparent; pointer-events: all; }
+.markup-layer .markup { cursor: move; }
+.markup-layer .selection-box { fill: none; stroke: var(--accent); pointer-events: none; }
+.markup-layer .selection-handle { fill: #fff; stroke: var(--accent); pointer-events: all; cursor: crosshair; }
+.markup-layer .markup-draft { pointer-events: none; }
+.markup-layer text { white-space: pre; }
+
+.viewer-container.drawing .markup-layer { pointer-events: all; cursor: crosshair; }
+.viewer-container.drawing .markup-layer * { pointer-events: none !important; }
+.viewer-container.hand .markup-layer,
+.viewer-container.hand .markup-layer * { pointer-events: none !important; }
+
+.markup-editor {
+  position: absolute;
+  z-index: 20;
+  box-sizing: border-box;
+  margin: 0;
+  border: 1px dashed var(--accent);
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.92);
+  resize: none;
+  overflow: hidden;
+  outline: none;
+  user-select: text;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}

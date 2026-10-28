@@ -1,4 +1,5 @@
 import { DocumentTab } from './document-tab.js';
+import { MarkupUi } from './markup-ui.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -21,7 +22,8 @@ const els = {
 
 const tabs = [];
 let activeTab = null;
-let tool = 'select';
+const markupUi = new MarkupUi({ activeTab: () => activeTab, onToolChange: () => applyTool() });
+const DRAW_TOOLS = new Set(['pen', 'highlight', 'line', 'arrow', 'rect', 'ellipse', 'cloud', 'text', 'callout', 'stamp']);
 
 // ---------- Opening documents ----------
 
@@ -33,21 +35,85 @@ async function openFile(file) {
     return;
   }
 
-  const tab = new DocumentTab({ ...file, viewersEl: els.viewers, sidebarEl: els.sidebar });
+  const tab = new DocumentTab({ ...file, viewersEl: els.viewers, sidebarEl: els.sidebar, markupUi });
   tabs.push(tab);
   wireTabEvents(tab);
   activateTab(tab);
   try {
     await tab.load();
   } catch (err) {
-    closeTab(tab);
-    alert(`Could not open ${file.name}.\n\n${err.message}`);
+    closeTab(tab, { force: true });
+    window.desktop.showError('Could not open file', `${file.name}\n\n${err.message}`);
     return;
   }
+  tab.store.onChange(() => {
+    renderTabbar();
+    updateUndoButtons();
+  });
   if (tab === activeTab) {
     updateToolbar();
+    markupUi.refresh();
     if (!els.findbar.hidden && els.findInput.value) runFind('');
   }
+}
+
+// ---------- Saving ----------
+
+async function save(tab, { saveAs = false } = {}) {
+  if (!tab?.pdf) return false;
+  let target = tab.path;
+  if (saveAs || !target) {
+    target = await window.desktop.saveAsDialog(tab.path || tab.name);
+    if (!target) return false;
+  }
+  try {
+    await tab.save(target);
+  } catch (err) {
+    await window.desktop.showError('Could not save', `${tab.name}\n\n${err.message}`);
+    return false;
+  }
+  renderTabbar();
+  updateToolbar();
+  return true;
+}
+
+/** Asks about unsaved changes. Returns false if the user cancelled. */
+async function confirmDiscard(tab) {
+  if (!tab.dirty) return true;
+  activateTab(tab);
+  const answer = await window.desktop.askUnsaved(tab.name);
+  if (answer === 'save') return save(tab);
+  return answer === 'discard';
+}
+
+window.desktop.onRequestClose(async () => {
+  for (const tab of [...tabs]) {
+    if (!(await confirmDiscard(tab))) {
+      window.desktop.cancelClose();
+      return;
+    }
+  }
+  window.desktop.confirmClose();
+});
+
+// ---------- Undo ----------
+
+function undo(redo = false) {
+  const el = document.activeElement;
+  if (el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && el.type !== 'range')) {
+    document.execCommand(redo ? 'redo' : 'undo');
+    return;
+  }
+  const store = activeTab?.store;
+  if (!store) return;
+  activeTab.markups.commitEditing();
+  if (redo) store.redo();
+  else store.undo();
+}
+
+function updateUndoButtons() {
+  $('btn-undo').disabled = !activeTab?.store?.canUndo;
+  $('btn-redo').disabled = !activeTab?.store?.canRedo;
 }
 
 function wireTabEvents(tab) {
@@ -67,6 +133,7 @@ function activateTab(tab) {
   renderTabbar();
   updateToolbar();
   applyTool();
+  markupUi.refresh();
   els.findStatus.textContent = '';
   if (tab) {
     tab.container.focus({ preventScroll: true });
@@ -74,7 +141,9 @@ function activateTab(tab) {
   }
 }
 
-async function closeTab(tab) {
+async function closeTab(tab, { force = false } = {}) {
+  if (!tabs.includes(tab)) return;
+  if (!force && !(await confirmDiscard(tab))) return;
   const index = tabs.indexOf(tab);
   if (index === -1) return;
   tabs.splice(index, 1);
@@ -91,7 +160,7 @@ function renderTabbar() {
       el.title = tab.path || tab.name;
       const name = document.createElement('span');
       name.className = 'tab-name';
-      name.textContent = tab.name;
+      name.textContent = (tab.dirty ? '● ' : '') + tab.name;
       const close = document.createElement('button');
       close.className = 'tab-close';
       close.textContent = '×';
@@ -127,6 +196,7 @@ function updateToolbar() {
   els.statusSize.textContent = activeTab ? formatBytes(activeTab.size) : '';
   updatePageControls();
   updateZoomControl();
+  updateUndoButtons();
 }
 
 function updatePageControls() {
@@ -175,17 +245,15 @@ function zoomBy(steps) {
   else activeTab.viewer.decreaseScale();
 }
 
-// ---------- Tools: select text and pan ----------
-
-function setTool(name) {
-  tool = name;
-  applyTool();
-}
+// ---------- Tools ----------
 
 function applyTool() {
-  $('btn-tool-select').classList.toggle('active', tool === 'select');
-  $('btn-tool-hand').classList.toggle('active', tool === 'hand');
-  for (const t of tabs) t.container.classList.toggle('hand', tool === 'hand' || spaceHeld);
+  const tool = markupUi.tool();
+  const panning = tool === 'hand' || spaceHeld;
+  for (const t of tabs) {
+    t.container.classList.toggle('hand', panning);
+    t.container.classList.toggle('drawing', !panning && DRAW_TOOLS.has(tool));
+  }
 }
 
 let spaceHeld = false;
@@ -195,7 +263,7 @@ function wireViewerInput(tab) {
   let pan = null;
 
   c.addEventListener('mousedown', (e) => {
-    const panning = (tool === 'hand' || spaceHeld) && e.button === 0;
+    const panning = (markupUi.tool() === 'hand' || spaceHeld) && e.button === 0;
     if (!panning && e.button !== 1) return; // middle button always pans
     e.preventDefault();
     pan = { x: e.clientX, y: e.clientY, left: c.scrollLeft, top: c.scrollTop };
@@ -273,8 +341,9 @@ function showFindState(state, matchesCount) {
 $('btn-open').addEventListener('click', () => window.desktop.openDialog());
 $('btn-open-welcome').addEventListener('click', () => window.desktop.openDialog());
 $('btn-sidebar').addEventListener('click', toggleSidebar);
-$('btn-tool-select').addEventListener('click', () => setTool('select'));
-$('btn-tool-hand').addEventListener('click', () => setTool('hand'));
+$('btn-save').addEventListener('click', () => save(activeTab));
+$('btn-undo').addEventListener('click', () => undo());
+$('btn-redo').addEventListener('click', () => undo(true));
 $('btn-prev-page').addEventListener('click', () => activeTab?.viewer.previousPage());
 $('btn-next-page').addEventListener('click', () => activeTab?.viewer.nextPage());
 $('btn-zoom-in').addEventListener('click', () => zoomBy(1));
@@ -314,16 +383,22 @@ function isTyping(e) {
 
 window.addEventListener('keydown', (e) => {
   if (isTyping(e) || e.metaKey || e.ctrlKey || e.altKey) return;
-  if (e.code === 'Space' && !spaceHeld) {
-    spaceHeld = true;
-    applyTool();
+  const toolId = e.key.length === 1 && markupUi.toolForKey(e.key);
+  if (e.code === 'Space') {
+    if (!spaceHeld) {
+      spaceHeld = true;
+      applyTool();
+    }
     e.preventDefault();
-  } else if (e.key === 'h' || e.key === 'H') {
-    setTool('hand');
-  } else if (e.key === 'v' || e.key === 'V') {
-    setTool('select');
-  } else if (e.key === 'Escape' && !els.findbar.hidden) {
-    closeFind();
+  } else if (toolId && activeTab?.pdf) {
+    markupUi.setTool(toolId);
+  } else if ((e.key === 'Delete' || e.key === 'Backspace') && activeTab?.markups?.selected) {
+    e.preventDefault();
+    activeTab.markups.deleteSelected();
+  } else if (e.key === 'Escape') {
+    if (!els.findbar.hidden) closeFind();
+    else if (activeTab?.markups?.selected) activeTab.markups.select(null);
+    else markupUi.setTool('select');
   }
 });
 window.addEventListener('keyup', (e) => {
@@ -348,6 +423,10 @@ window.desktop.onMenuCommand((command) => {
     case 'toggle-sidebar': return toggleSidebar();
     case 'find': return openFind();
     case 'close-tab': return activeTab && closeTab(activeTab);
+    case 'save': return save(activeTab);
+    case 'save-as': return save(activeTab, { saveAs: true });
+    case 'undo': return undo();
+    case 'redo': return undo(true);
     case 'next-tab': return cycleTab(1);
     case 'prev-tab': return cycleTab(-1);
   }
