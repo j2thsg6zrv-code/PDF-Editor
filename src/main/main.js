@@ -17,7 +17,7 @@ function createWindow() {
     height: 900,
     minWidth: 800,
     minHeight: 500,
-    title: 'PDF Editor',
+    title: 'Redline PDF Editor',
     backgroundColor: '#2b2d31',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
