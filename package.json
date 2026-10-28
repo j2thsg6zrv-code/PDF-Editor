@@ -6,8 +6,8 @@
   "main": "src/main/main.js",
   "scripts": {
     "start": "electron .",
-    "dist:mac": "electron-builder --mac",
-    "dist:win": "electron-builder --win"
+    "dist:mac": "electron-builder --mac --publish never",
+    "dist:win": "electron-builder --win --publish never"
   },
   "license": "UNLICENSED",
   "private": true,
@@ -22,16 +22,45 @@
   "build": {
     "appId": "com.matt.redlinepdfeditor",
     "productName": "Redline PDF Editor",
-    "files": ["src/**/*", "package.json"],
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
     "mac": {
       "category": "public.app-category.productivity",
-      "target": ["dmg"]
+      "icon": "build/icon.png",
+      "identity": null,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
     },
     "win": {
-      "target": ["nsis"]
+      "icon": "build/icon.png",
+      "target": [
+        "nsis"
+      ]
     },
     "fileAssociations": [
-      { "ext": "pdf", "name": "PDF Document", "role": "Editor" }
-    ]
+      {
+        "ext": "pdf",
+        "name": "PDF Document",
+        "role": "Editor"
+      }
+    ],
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "afterPack": "build/after-pack.js",
+    "artifactName": "Redline-PDF-Editor-${arch}.${ext}",
+    "dmg": {
+      "title": "Redline PDF Editor"
+    }
   }
 }
