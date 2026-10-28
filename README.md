@@ -9,7 +9,7 @@ and [pdf-lib](https://pdf-lib.js.org/). macOS first, Windows later.
 
 1. **Viewer** — open PDFs in tabs, zoom, pan, page thumbnails, text search. ✅
 2. **Markups** — pen, highlighter, text, callouts, clouds, arrows, shapes, stamps; saved into the PDF. ✅
-3. **Measurement and takeoff** — scale calibration, length, area, perimeter, count; Markups List with CSV/Excel export.
+3. **Measurement and takeoff** — scale calibration, length, area, perimeter, count; Markups List with CSV/Excel export. ✅
 4. **Document tools** — merge, split, insert, rotate, reorder pages; compare and overlay revisions.
 
 ## Running it
@@ -60,6 +60,31 @@ it in Finder and choose **Open**.
 | Text box | T | Click for a default-width box, or drag to set the width |
 | Callout | Q | Drag from the point being called out to where the text goes |
 | Stamp | S | Pick the stamp in the properties bar, then click to place |
+
+## Measurement and takeoff
+
+Set each sheet's scale first: pick a measurement tool, then choose a scale (architectural,
+engineering or metric) from **Scale** in the properties bar, or choose **Calibrate from a
+known dimension…** (or press X) and drag along a dimension you know, then type its real
+length (`20`, `12.5` or `12'6"`). Tick **All pages** to apply it to the whole set.
+Scales are saved in the PDF.
+
+| Tool | Key | How |
+| --- | --- | --- |
+| Length | M | Drag between two points (Shift snaps to 45°) |
+| Polylength | J | Click each point; double-click or Enter to finish |
+| Area | B | Click each corner; double-click or Enter to finish |
+| Perimeter | O | Click each corner; double-click or Enter to finish |
+| Count | K | Click each item; change tools to start a new count |
+| Calibrate | X | Drag along a known dimension |
+
+While clicking out a shape, Backspace removes the last point and Esc cancels it.
+Measurements update when the scale changes, and drag their handles to adjust points.
+
+**Markups List** (⌘L, or the button in the status bar) lists every markup with its page,
+type, text, measurement, color, author and date. Click a column to sort, filter by type,
+page or text, click a row to jump to it, and **Export CSV…** to open the list in Excel.
+Totals for each measurement type are shown at the bottom.
 
 Delete or Backspace removes the selected markup; Esc deselects, then returns to Select.
 The properties bar sets color, fill, line width, text size and opacity for the selected
