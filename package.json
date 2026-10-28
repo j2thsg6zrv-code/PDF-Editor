@@ -1,6 +1,6 @@
 {
-  "name": "pdf-editor",
-  "productName": "PDF Editor",
+  "name": "redline-pdf-editor",
+  "productName": "Redline PDF Editor",
   "version": "0.1.0",
   "description": "A desktop PDF editor for drawings: markups, measurements and document tools.",
   "main": "src/main/main.js",
@@ -20,8 +20,8 @@
     "electron-builder": "25.1.8"
   },
   "build": {
-    "appId": "com.matt.pdfeditor",
-    "productName": "PDF Editor",
+    "appId": "com.matt.redlinepdfeditor",
+    "productName": "Redline PDF Editor",
     "files": ["src/**/*", "package.json"],
     "mac": {
       "category": "public.app-category.productivity",

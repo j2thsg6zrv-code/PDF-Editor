@@ -191,7 +191,7 @@ function updateToolbar() {
   const hasDoc = !!activeTab?.pdf;
   document.body.classList.toggle('no-doc', !hasDoc);
   els.welcome.hidden = tabs.length > 0;
-  document.title = activeTab ? `${activeTab.name} — PDF Editor` : 'PDF Editor';
+  document.title = activeTab ? `${activeTab.name} — Redline PDF Editor` : 'Redline PDF Editor';
   els.statusFile.textContent = activeTab ? activeTab.path || activeTab.name : '';
   els.statusSize.textContent = activeTab ? formatBytes(activeTab.size) : '';
   updatePageControls();

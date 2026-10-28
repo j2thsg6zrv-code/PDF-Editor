@@ -1,4 +1,4 @@
-# PDF Editor
+# Redline PDF Editor
 
 A desktop PDF editor for construction and engineering drawings, modeled on the
 workflows people use Bluebeam Revu for: markups, measurements and takeoffs, and
