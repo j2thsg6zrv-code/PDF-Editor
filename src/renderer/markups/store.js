@@ -57,6 +57,12 @@ export class MarkupStore {
     this.#apply({ ...this.#state, markups: [...this.#state.markups, markup] }, [markup.page]);
   }
 
+  /** Adds several markups as one undoable step. */
+  addMany(markups) {
+    if (!markups.length) return;
+    this.#apply({ ...this.#state, markups: [...this.#state.markups, ...markups] }, [...new Set(markups.map((m) => m.page))]);
+  }
+
   /** Replaces markups by id. Pass the full new objects. */
   replace(updated) {
     const byId = new Map(updated.map((m) => [m.id, m]));

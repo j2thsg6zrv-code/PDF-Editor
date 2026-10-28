@@ -580,6 +580,19 @@ export class MarkupLayer {
     this.#commitEditor();
   }
 
+  /** Drops every page layer before the document's pages are replaced. */
+  resetPages() {
+    this.#commitEditor();
+    this.cancelPoly();
+    this.countId = null;
+    this.gesture = null;
+    this.preview = null;
+    this.draft = null;
+    this.select(null);
+    for (const entry of this.pages.values()) entry.svg.remove();
+    this.pages.clear();
+  }
+
   destroy() {
     this.#commitEditor();
     for (const entry of this.pages.values()) entry.svg.remove();

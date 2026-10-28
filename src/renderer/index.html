@@ -103,7 +103,16 @@
   </div>
 
   <main id="workspace">
-    <aside id="sidebar"></aside>
+    <aside id="sidebar">
+      <div id="page-tools" role="toolbar" aria-label="Page tools">
+        <button id="pt-rotate-ccw" class="icon" title="Rotate counterclockwise (⇧⌘R)">↺</button>
+        <button id="pt-rotate-cw" class="icon" title="Rotate clockwise (⌘R)">↻</button>
+        <button id="pt-insert" class="icon" title="Insert pages from a file… (or drag a PDF onto the thumbnails)">＋</button>
+        <button id="pt-extract" class="icon" title="Extract pages to a new PDF…">⇪</button>
+        <button id="pt-delete" class="icon" title="Delete pages…">🗑</button>
+      </div>
+      <div id="page-tools-hint">Drag thumbnails to reorder. ⌘-click or Shift-click to pick several.</div>
+    </aside>
     <section id="main-col">
     <section id="viewers">
       <div id="welcome">
@@ -155,6 +164,22 @@
       <div class="dialog-buttons">
         <button value="cancel" formnovalidate>Cancel</button>
         <button value="ok" class="primary">Set Scale</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="compare-dialog">
+    <form method="dialog">
+      <h2>Compare documents</h2>
+      <p>Pick the earlier version and the revised one. Changes show in red (old) and blue (new), and can be clouded on the new version.</p>
+      <label class="field">Old version <select id="cmp-old"></select></label>
+      <label class="field">New version <select id="cmp-new"></select></label>
+      <p id="cmp-error" role="alert"></p>
+      <div class="dialog-buttons">
+        <button id="cmp-browse" type="button">Open Another PDF…</button>
+        <span class="spacer"></span>
+        <button value="cancel" formnovalidate>Cancel</button>
+        <button value="ok" class="primary">Compare</button>
       </div>
     </form>
   </dialog>
