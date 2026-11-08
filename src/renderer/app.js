@@ -7,6 +7,7 @@ import { CompareTab } from './compare.js';
 import { buildRibbon, setToggle } from './ribbon.js';
 
 const $ = (id) => document.getElementById(id);
+const isMac = window.desktop.platform === 'darwin';
 
 const els = {
   viewers: $('viewers'),
@@ -195,7 +196,7 @@ function renderTabbar() {
       const close = document.createElement('button');
       close.className = 'tab-close';
       close.textContent = '×';
-      close.title = 'Close tab (⌘W)';
+      close.title = keyLabels('Close tab (⌘W)');
       close.addEventListener('click', (e) => {
         e.stopPropagation();
         closeTab(tab);
@@ -676,6 +677,24 @@ window.addEventListener('drop', async (e) => {
     else openFile({ name: file.name, path: '', data: new Uint8Array(await file.arrayBuffer()) });
   }
 });
+
+// Shortcut hints are written Mac-style (⌘, ⇧); elsewhere they read Ctrl and Shift.
+function keyLabels(text) {
+  if (isMac) return text;
+  return text
+    .replace(/⇧⌘/g, 'Ctrl+Shift+')
+    .replace(/⌘-click/g, 'Ctrl-click')
+    .replace(/⌘/g, 'Ctrl+')
+    .replace(/⇧/g, 'Shift+')
+    .replace(/⌫/g, 'Backspace');
+}
+if (!isMac) {
+  for (const el of document.querySelectorAll('[title]')) el.title = keyLabels(el.title);
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (/[⌘⇧]/.test(node.nodeValue)) node.nodeValue = keyLabels(node.nodeValue);
+  }
+}
 
 updateToolbar();
 window.desktop.ready();

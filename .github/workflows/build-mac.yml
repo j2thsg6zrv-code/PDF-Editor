@@ -1,4 +1,5 @@
-name: Build Mac app
+name: Build apps
+# Kept at this file name so build numbers (and release tags) keep counting up.
 
 on:
   push:
@@ -10,8 +11,8 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    runs-on: macos-14
+  mac:
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
@@ -22,12 +23,12 @@ jobs:
 
       - run: npm ci
 
-      # One architecture at a time: both disk images use the same volume name,
-      # and building them together makes macOS fail to unmount one of them.
       # Spotlight indexing a freshly built disk image keeps it busy and stops it unmounting.
       - name: Turn off Spotlight indexing
         run: sudo mdutil -a -i off
 
+      # One architecture at a time: both disk images use the same volume name,
+      # and building them together makes macOS fail to unmount one of them.
       - name: Build .dmg installers (Intel and Apple silicon)
         run: |
           npx electron-builder --mac --x64 --publish never
@@ -41,15 +42,48 @@ jobs:
           name: mac-installers
           path: dist/*.dmg
 
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build the Windows installer
+        run: npm run dist:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Keep the installer with this run
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist/*.exe
+
+  release:
+    if: github.event_name != 'pull_request'
+    needs: [mac, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: installers
+          merge-multiple: true
+
       - name: Publish as the latest release
-        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
           name: Redline PDF Editor (build ${{ github.run_number }})
           body: |
-            Mac installers built from ${{ github.sha }}.
+            Installers built from ${{ github.sha }}.
+            - Windows 10 and 11: Redline-PDF-Editor-Setup.exe
             - Apple silicon Macs (M1 and newer): Redline-PDF-Editor-arm64.dmg
             - Intel Macs: Redline-PDF-Editor-x64.dmg
-          files: dist/*.dmg
+          files: installers/*
           make_latest: true
