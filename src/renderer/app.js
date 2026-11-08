@@ -323,17 +323,44 @@ function wireViewerInput(tab) {
     c.classList.remove('panning');
   });
 
-  // Pinch on a trackpad (reported as ctrl+wheel) or ⌘/ctrl+scroll zooms around the pointer.
+  // Like Bluebeam, a mouse wheel zooms around the pointer; hold Shift to scroll
+  // instead. Two-finger trackpad scrolling still scrolls, and pinching (reported as
+  // ctrl+wheel) or ⌘/ctrl+scroll zooms around the pointer.
   c.addEventListener(
     'wheel',
     (e) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
+      const pinch = e.ctrlKey || e.metaKey;
+      if (!pinch && (e.shiftKey || isTrackpadScroll(e))) return;
       e.preventDefault();
-      const factor = Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.01));
-      tab.viewer.updateScale({ scaleFactor: factor, origin: [e.clientX, e.clientY], drawingDelay: 300 });
+      // About 20% per wheel notch; a pinch's small deltas zoom smoothly.
+      const perUnit = pinch ? 0.01 : 0.0018;
+      const factor = Math.exp(-e.deltaY * (e.deltaMode === 1 ? perUnit * 33 : perUnit));
+      zoomAt(tab, factor, e.clientX, e.clientY);
     },
     { passive: false },
   );
+}
+
+/** Zooms so the spot on the page under (x, y) stays under it. */
+function zoomAt(tab, factor, x, y) {
+  const c = tab.container;
+  const pageEl = document.elementsFromPoint(x, y).find((el) => el.classList?.contains('page') && c.contains(el));
+  const before = pageEl?.getBoundingClientRect();
+  tab.viewer.updateScale({ scaleFactor: factor, drawingDelay: 300 });
+  if (!pageEl) return;
+  const after = pageEl.getBoundingClientRect();
+  c.scrollLeft += after.left + ((x - before.left) / before.width) * after.width - x;
+  c.scrollTop += after.top + ((y - before.top) / before.height) * after.height - y;
+}
+
+/**
+ * Chromium reports wheelDeltaY as 120 per notch for a mouse wheel, but as -3 x deltaY
+ * for a trackpad's smooth scrolling, which is how the two are told apart.
+ */
+function isTrackpadScroll(e) {
+  if (e.deltaMode !== 0) return false;
+  if (e.deltaX !== 0 && Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return true;
+  return e.wheelDeltaY !== 0 && e.wheelDeltaY === -3 * e.deltaY;
 }
 
 // ---------- Find ----------
