@@ -232,6 +232,20 @@ app.on('open-file', (event, filePath) => {
   sendFileToRenderer(filePath);
 });
 
+// Windows and Linux start a second copy of the app when a PDF is double-clicked
+// while it is already open; hand that file to the open window instead.
+if (!isMac && !app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', (_event, argv) => {
+    argv.slice(1).filter((a) => a.toLowerCase().endsWith('.pdf')).forEach(sendFileToRenderer);
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+}
+
 app.whenReady().then(() => {
   buildMenu();
   createWindow();

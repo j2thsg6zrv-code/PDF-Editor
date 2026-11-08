@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 // The only bridge between the page and the operating system.
 contextBridge.exposeInMainWorld('desktop', {
+  platform: process.platform,
   openDialog: () => ipcRenderer.invoke('dialog:open'),
   readFile: (filePath) => ipcRenderer.invoke('file:read', filePath),
   pickPdfs: (title) => ipcRenderer.invoke('dialog:pick-pdfs', title),

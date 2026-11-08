@@ -3,7 +3,7 @@
 A desktop PDF editor for construction and engineering drawings, modeled on the
 workflows people use Bluebeam Revu for: markups, measurements and takeoffs, and
 document tools. Built with Electron, [PDF.js](https://mozilla.github.io/pdf.js/)
-and [pdf-lib](https://pdf-lib.js.org/). macOS first, Windows later.
+and [pdf-lib](https://pdf-lib.js.org/). Runs on macOS and Windows.
 
 ## Roadmap
 
@@ -12,10 +12,20 @@ and [pdf-lib](https://pdf-lib.js.org/). macOS first, Windows later.
 3. **Measurement and takeoff** — scale calibration, length, area, perimeter, count; Markups List with CSV/Excel export. ✅
 4. **Document tools** — insert, extract, delete, rotate and reorder pages; compare and overlay revisions. ✅
 
-## Installing on a Mac
+## Installing
 
-Every change merged to `main` builds a Mac installer automatically (see the
-[latest release](../../releases/latest)):
+Every change merged to `main` builds the installers automatically (see the
+[latest release](../../releases/latest)).
+
+### Windows
+
+Download `Redline-PDF-Editor-Setup.exe` and run it. It installs for your user account
+(no admin rights needed) and adds Redline PDF Editor to the Start menu and the desktop.
+The installer isn't code-signed yet, so Windows SmartScreen may say it "protected your
+PC": click **More info**, then **Run anyway**.
+
+### Mac
+
 
 - Apple silicon Macs (M1 and newer): `Redline-PDF-Editor-arm64.dmg`
 - Intel Macs: `Redline-PDF-Editor-x64.dmg`
@@ -34,10 +44,11 @@ npm install
 npm start
 ```
 
-To build the Mac installers yourself (`.dmg` files in `dist/`, on a Mac):
+To build the installers yourself (files land in `dist/`):
 
 ```sh
-npm run dist:mac
+npm run dist:mac   # on a Mac: .dmg files
+npm run dist:win   # on Windows: Redline-PDF-Editor-Setup.exe
 ```
 
 ## Using the viewer

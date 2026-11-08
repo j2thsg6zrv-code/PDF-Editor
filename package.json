@@ -7,7 +7,7 @@
   "scripts": {
     "start": "electron .",
     "dist:mac": "electron-builder --mac --x64 --arm64 --publish never",
-    "dist:win": "electron-builder --win --publish never"
+    "dist:win": "electron-builder --win --x64 --publish never"
   },
   "license": "UNLICENSED",
   "private": true,
@@ -57,6 +57,11 @@
     "artifactName": "Redline-PDF-Editor-${arch}.${ext}",
     "dmg": {
       "title": "Redline PDF Editor"
+    },
+    "nsis": {
+      "artifactName": "Redline-PDF-Editor-Setup.${ext}",
+      "createDesktopShortcut": "always",
+      "shortcutName": "Redline PDF Editor"
     }
   }
 }
