@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('desktop', {
   platform: process.platform,
   openDialog: () => ipcRenderer.invoke('dialog:open'),
   readFile: (filePath) => ipcRenderer.invoke('file:read', filePath),
+  openPath: (filePath) => ipcRenderer.send('file:open-path', filePath),
   pickPdfs: (title) => ipcRenderer.invoke('dialog:pick-pdfs', title),
   confirm: (message, detail, confirmLabel) => ipcRenderer.invoke('dialog:confirm', message, detail, confirmLabel),
   pathForFile: (file) => webUtils.getPathForFile(file),
