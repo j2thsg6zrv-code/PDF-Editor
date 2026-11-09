@@ -64,7 +64,8 @@ in the status bar at the bottom.
 | Close tab | ⌘W |
 | Next / previous tab | ⌃Tab / ⌃⇧Tab |
 | Find | ⌘F, then Enter / ⇧Enter for next / previous |
-| Zoom in / out | Mouse wheel (zooms around the pointer; hold Shift to scroll instead), ⌘= / ⌘−, pinch, or ⌘-scroll |
+| Zoom in / out | Mouse wheel (zooms around the pointer; hold Shift to flip through pages instead), ⌘= / ⌘−, pinch, or ⌘-scroll |
+| Next / previous page | Hold Shift and turn the mouse wheel (one page per notch) |
 | Actual size / fit page / fit width | ⌘0 / ⌘1 / ⌘2 |
 | Pan | H for the pan tool, or hold Space and drag, or middle-drag |
 | Select text | V |
