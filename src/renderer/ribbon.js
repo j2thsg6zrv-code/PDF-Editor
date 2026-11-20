@@ -10,6 +10,7 @@ const ICONS = {
   open: ICON('<path d="M1.5 4.5v8.5h11l2-6H4l-2 6"/><path d="M1.5 4.5V3h4l1.5 1.5h5V7"/>'),
   save: ICON('<path d="M2.5 2.5h9l2 2v9h-11z"/><path d="M5 2.5v3.5h5.5V2.5M4.5 13.5V9h7v4.5"/>'),
   saveAs: ICON('<path d="M2.5 2.5h9l2 2v4M8 13.5H2.5v-11"/><path d="M5 2.5v3.5h5.5V2.5"/><path d="M10 14l.5-2 3-3 1.5 1.5-3 3z"/>'),
+  print: ICON('<path d="M4 6V1.5h8V6"/><rect x="1.5" y="6" width="13" height="6" rx="1"/><path d="M4 10h8v4.5H4z"/><circle cx="12" cy="8" r=".5" fill="currentColor"/>'),
   undo: ICON('<path d="M5 3.5L2 6.5l3 3"/><path d="M2 6.5h7.5a4 4 0 010 8H6"/>'),
   redo: ICON('<path d="M11 3.5l3 3-3 3"/><path d="M14 6.5H6.5a4 4 0 000 8H10"/>'),
   thumbnails: ICON('<rect x="1.5" y="2" width="4" height="5"/><rect x="1.5" y="9" width="4" height="5"/><path d="M8 2.5h6.5v11H8z"/>'),
@@ -35,20 +36,21 @@ const cmd = (command, label, icon, title, extra = {}) => ({ command, label, icon
 const OPEN = cmd('open', 'Open', 'open', 'Open a PDF (⌘O)');
 const SAVE = cmd('save', 'Save', 'save', 'Save (⌘S)', { needsDoc: true });
 const SAVE_AS = cmd('save-as', 'Save As', 'saveAs', 'Save a copy (⇧⌘S)', { needsDoc: true });
+const PRINT = cmd('print', 'Print', 'print', 'Print with markups (⌘P)', { needsDoc: true });
 const UNDO = cmd('undo', 'Undo', 'undo', 'Undo (⌘Z)', { needsDoc: true, id: 'btn-undo' });
 const REDO = cmd('redo', 'Redo', 'redo', 'Redo (⇧⌘Z)', { needsDoc: true, id: 'btn-redo' });
 const THUMBS = cmd('toggle-sidebar', 'Thumbnails', 'thumbnails', 'Show or hide page thumbnails (⌘T)', { toggle: true });
 const LIST = cmd('toggle-markups-list', 'Markups List', 'list', 'Show or hide the Markups List (⌘L)', { toggle: true });
 const FIND = cmd('find', 'Find', 'find', 'Find text (⌘F)', { needsDoc: true });
 
-const QUICK_ACCESS = [OPEN, SAVE, UNDO, REDO];
+const QUICK_ACCESS = [OPEN, SAVE, PRINT, UNDO, REDO];
 
 export const RIBBON = [
   {
     id: 'home',
     label: 'Home',
     groups: [
-      { label: 'File', items: [OPEN, SAVE, SAVE_AS] },
+      { label: 'File', items: [OPEN, SAVE, SAVE_AS, PRINT] },
       { label: 'Edit', items: [UNDO, REDO] },
       { label: 'Navigate', items: [tool('select'), tool('hand')] },
       { label: 'Markup', items: [tool('pen'), tool('highlight'), tool('text'), tool('callout'), tool('cloud'), tool('stamp')] },
@@ -91,6 +93,7 @@ export const RIBBON = [
           cmd('delete-pages', 'Delete', 'trash', 'Delete the selected pages', { needsDoc: true }),
         ],
       },
+      { label: 'Output', items: [PRINT] },
       { label: 'Revisions', items: [cmd('compare', 'Compare', 'compare', 'Compare two versions of a document')] },
       { label: 'Panels', items: [THUMBS] },
     ],
