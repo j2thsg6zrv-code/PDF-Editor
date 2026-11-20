@@ -93,6 +93,8 @@ function buildMenu() {
         { label: 'Save', accelerator: 'CmdOrCtrl+S', click: () => sendCommand('save') },
         { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: () => sendCommand('save-as') },
         { type: 'separator' },
+        { label: 'Print…', accelerator: 'CmdOrCtrl+P', click: () => sendCommand('print') },
+        { type: 'separator' },
         { label: 'Close Tab', accelerator: 'CmdOrCtrl+W', click: () => sendCommand('close-tab') },
         ...(isMac ? [] : [{ type: 'separator' }, { role: 'quit' }]),
       ],
@@ -183,6 +185,17 @@ ipcMain.handle('dialog:unsaved', async (_event, name) => {
     cancelId: 2,
   });
   return ['save', 'discard', 'cancel'][response];
+});
+// Opens the system print dialog for the page, which by now holds only the sheets to print.
+ipcMain.handle('app:print', (event) => {
+  return new Promise((resolve) => {
+    event.sender.print({ silent: false, printBackground: true, margins: { marginType: 'none' } }, (success, reason) => {
+      if (!success && reason && reason !== 'cancelled' && reason !== 'Print job canceled') {
+        dialog.showErrorBox('Could not print', reason);
+      }
+      resolve(success);
+    });
+  });
 });
 ipcMain.handle('dialog:error', (_event, title, message) => dialog.showErrorBox(title, message));
 // Writes to a temporary file first so a failed save never leaves a half-written PDF.
