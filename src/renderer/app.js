@@ -323,14 +323,20 @@ function wireViewerInput(tab) {
     c.classList.remove('panning');
   });
 
-  // Like Bluebeam, a mouse wheel zooms around the pointer; hold Shift to scroll
-  // instead. Two-finger trackpad scrolling still scrolls, and pinching (reported as
-  // ctrl+wheel) or ⌘/ctrl+scroll zooms around the pointer.
+  // Like Bluebeam, a mouse wheel zooms around the pointer; hold Shift to flip
+  // through the pages instead. Two-finger trackpad scrolling still scrolls, and
+  // pinching (reported as ctrl+wheel) or ⌘/ctrl+scroll zooms around the pointer.
+  let flipDelta = 0;
   c.addEventListener(
     'wheel',
     (e) => {
       const pinch = e.ctrlKey || e.metaKey;
-      if (!pinch && (e.shiftKey || isTrackpadScroll(e))) return;
+      if (e.shiftKey && !pinch) {
+        e.preventDefault();
+        flipDelta = flipPageOnWheel(tab, e, flipDelta);
+        return;
+      }
+      if (!pinch && isTrackpadScroll(e)) return;
       e.preventDefault();
       // About 20% per wheel notch; a pinch's small deltas zoom smoothly.
       const perUnit = pinch ? 0.01 : 0.0018;
@@ -339,6 +345,29 @@ function wireViewerInput(tab) {
     },
     { passive: false },
   );
+}
+
+/**
+ * Shift + wheel: one page per mouse wheel notch, down for the next page and up for
+ * the previous one. The OS may turn a shifted wheel into a sideways scroll, so
+ * either axis counts. A trackpad's many small deltas are added up until they make
+ * about one notch. Returns the leftover trackpad delta.
+ */
+function flipPageOnWheel(tab, e, pending) {
+  const vertical = e.deltaY !== 0;
+  const delta = vertical ? e.deltaY : e.deltaX;
+  const wheelDelta = vertical ? e.wheelDeltaY : e.wheelDeltaX;
+  if (!delta) return pending;
+  let steps = Math.sign(delta);
+  if (e.deltaMode === 0 && wheelDelta !== 0 && wheelDelta === -3 * delta) {
+    pending += delta;
+    if (Math.abs(pending) < 120) return pending;
+    steps = Math.sign(pending);
+    pending = 0;
+  }
+  if (steps > 0) tab.viewer.nextPage();
+  else tab.viewer.previousPage();
+  return pending;
 }
 
 /** Zooms so the spot on the page under (x, y) stays under it. */
