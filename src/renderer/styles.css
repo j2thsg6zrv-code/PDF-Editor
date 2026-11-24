@@ -464,3 +464,34 @@ body.no-doc #page-tools-hint { display: none; }
 #compare-dialog .dialog-buttons .spacer { flex: 1; }
 #cmp-error { color: #f87171; min-height: 1em; margin: 4px 0 0; font-size: 12px; }
 body.busy, body.busy * { cursor: progress !important; }
+
+/* Printing: progress while pages are prepared, then only the sheets go to the printer. */
+#print-progress {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+#print-progress[hidden] { display: none; }
+.print-progress-box {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+#print-root { display: none; }
+@media print {
+  html, body { display: block !important; background: #fff !important; color-scheme: light; height: auto !important; overflow: visible !important; }
+  body > :not(#print-root) { display: none !important; }
+  #print-root { display: block; }
+  .print-sheet { break-after: page; overflow: hidden; }
+  .print-sheet:last-child { break-after: auto; }
+  .print-sheet img { display: block; width: 100%; height: 100%; object-fit: contain; }
+}

@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('desktop', {
   saveAsDialog: (defaultPath, kind) => ipcRenderer.invoke('dialog:save-as', defaultPath, kind),
   askUnsaved: (name) => ipcRenderer.invoke('dialog:unsaved', name),
   showError: (title, message) => ipcRenderer.invoke('dialog:error', title, message),
+  print: () => ipcRenderer.invoke('app:print'),
   saveFile: (filePath, data) => ipcRenderer.invoke('file:save', filePath, data),
   confirmClose: () => ipcRenderer.send('app:close-confirmed'),
   cancelClose: () => ipcRenderer.send('app:close-cancelled'),

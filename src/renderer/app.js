@@ -5,6 +5,7 @@ import { PAPER_SCALE } from './markups/measure.js';
 import { newId } from './markups/store.js';
 import { CompareTab } from './compare.js';
 import { buildRibbon, setToggle } from './ribbon.js';
+import { printTab } from './print.js';
 
 const $ = (id) => document.getElementById(id);
 const isMac = window.desktop.platform === 'darwin';
@@ -116,6 +117,38 @@ window.desktop.onRequestClose(async () => {
     }
   }
   window.desktop.confirmClose();
+});
+
+// ---------- Printing ----------
+
+let printJob = null;
+
+async function print(tab) {
+  if (!tab?.pdf || tab.kind === 'compare' || printJob) return;
+  const job = { cancelled: false };
+  printJob = job;
+  const overlay = $('print-progress');
+  const text = $('print-progress-text');
+  // Only show progress if preparing takes a moment, so short documents go straight to the dialog.
+  const timer = setTimeout(() => (overlay.hidden = false), 400);
+  document.body.classList.add('busy');
+  try {
+    await printTab(tab, {
+      onProgress: (done, total) => (text.textContent = `Preparing page ${Math.min(done + 1, total)} of ${total} for printing…`),
+      isCancelled: () => job.cancelled,
+    });
+  } catch (err) {
+    window.desktop.showError('Could not print', `${tab.name}\n\n${err.message}`);
+  } finally {
+    clearTimeout(timer);
+    overlay.hidden = true;
+    document.body.classList.remove('busy');
+    printJob = null;
+  }
+}
+
+$('print-cancel').addEventListener('click', () => {
+  if (printJob) printJob.cancelled = true;
 });
 
 // ---------- Undo ----------
@@ -689,6 +722,7 @@ function runCommand(command) {
     case 'close-tab': return activeTab && closeTab(activeTab);
     case 'save': return save(activeTab);
     case 'save-as': return save(activeTab, { saveAs: true });
+    case 'print': return print(activeTab);
     case 'undo': return undo();
     case 'redo': return undo(true);
     case 'next-tab': return cycleTab(1);
