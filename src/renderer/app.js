@@ -700,7 +700,7 @@ window.addEventListener('drop', async (e) => {
   for (const file of e.dataTransfer.files) {
     if (!file.name.toLowerCase().endsWith('.pdf')) continue;
     const path = window.desktop.pathForFile(file);
-    if (path) openFile(await window.desktop.readFile(path));
+    if (path) window.desktop.openPath(path);
     else openFile({ name: file.name, path: '', data: new Uint8Array(await file.arrayBuffer()) });
   }
 });

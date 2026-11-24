@@ -2,6 +2,7 @@ const { app, BrowserWindow, dialog, ipcMain, Menu, shell } = require('electron')
 const fs = require('fs/promises');
 const os = require('os');
 const path = require('path');
+const { RecentFiles } = require('./recent-files');
 
 const isMac = process.platform === 'darwin';
 let mainWindow = null;
@@ -10,6 +11,7 @@ let closeConfirmed = false;
 let quitting = false;
 // Files the OS asked us to open before the page was ready to receive them (macOS "Open With", double-click).
 const pendingFiles = [];
+let recentFiles = null; // created once the app is ready and knows its user-data folder
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -61,8 +63,13 @@ async function sendFileToRenderer(filePath) {
   try {
     const file = await readPdf(filePath);
     mainWindow.webContents.send('file:opened', file);
-    app.addRecentDocument(filePath);
+    rememberRecent(filePath);
   } catch (err) {
+    // A file that has been moved or deleted drops off the Open Recent list.
+    if (err.code === 'ENOENT' && recentFiles) {
+      recentFiles.remove(filePath);
+      buildMenu();
+    }
     dialog.showErrorBox('Could not open file', `${filePath}\n\n${err.message}`);
   }
 }
@@ -77,6 +84,35 @@ async function showOpenDialog() {
   if (!result.canceled) result.filePaths.forEach(sendFileToRenderer);
 }
 
+function rememberRecent(filePath) {
+  app.addRecentDocument(filePath); // Dock menu on macOS, jump list on Windows
+  if (recentFiles && recentFiles.add(filePath)) buildMenu();
+}
+
+function recentFilesMenu() {
+  const files = recentFiles ? recentFiles.list() : [];
+  const items = files.map((filePath) => ({
+    label: path.basename(filePath),
+    sublabel: path.dirname(filePath), // shown on Windows; macOS ignores it
+    toolTip: filePath,
+    click: () => sendFileToRenderer(filePath),
+  }));
+  if (!items.length) items.push({ label: 'No Recent Files', enabled: false });
+  items.push(
+    { type: 'separator' },
+    {
+      label: 'Clear Menu',
+      enabled: files.length > 0,
+      click: () => {
+        recentFiles.clear();
+        app.clearRecentDocuments();
+        buildMenu();
+      },
+    },
+  );
+  return items;
+}
+
 function sendCommand(command) {
   if (mainWindow) mainWindow.webContents.send('menu:command', command);
 }
@@ -88,7 +124,7 @@ function buildMenu() {
       label: 'File',
       submenu: [
         { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: showOpenDialog },
-        { role: 'recentDocuments', submenu: [{ role: 'clearRecentDocuments' }] },
+        { label: 'Open Recent', submenu: recentFilesMenu() },
         { type: 'separator' },
         { label: 'Save', accelerator: 'CmdOrCtrl+S', click: () => sendCommand('save') },
         { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: () => sendCommand('save-as') },
@@ -190,7 +226,7 @@ ipcMain.handle('file:save', async (_event, filePath, data) => {
   const tmp = path.join(path.dirname(filePath), `.${path.basename(filePath)}.${process.pid}.tmp`);
   await fs.writeFile(tmp, data);
   await fs.rename(tmp, filePath);
-  app.addRecentDocument(filePath);
+  rememberRecent(filePath);
 });
 ipcMain.on('app:close-confirmed', () => {
   closeConfirmed = true;
@@ -205,6 +241,8 @@ app.on('before-quit', () => {
   quitting = true;
 });
 ipcMain.handle('file:read', (_event, filePath) => readPdf(filePath));
+// Files dropped onto the window open through the same path as File > Open, so they are remembered too.
+ipcMain.on('file:open-path', (_event, filePath) => sendFileToRenderer(filePath));
 // Picks PDFs and hands their contents back without opening them in tabs (for inserting pages).
 ipcMain.handle('dialog:pick-pdfs', async (_event, title) => {
   const result = await dialog.showOpenDialog(mainWindow, {
@@ -247,6 +285,7 @@ if (!isMac && !app.requestSingleInstanceLock()) {
 }
 
 app.whenReady().then(() => {
+  recentFiles = new RecentFiles(path.join(app.getPath('userData'), 'recent-files.json'));
   buildMenu();
   createWindow();
   // Windows/Linux pass files on the command line.
