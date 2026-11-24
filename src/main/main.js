@@ -1,5 +1,6 @@
 const { app, BrowserWindow, dialog, ipcMain, Menu, shell } = require('electron');
 const fs = require('fs/promises');
+const fsSync = require('fs');
 const os = require('os');
 const path = require('path');
 const { RecentFiles } = require('./recent-files');
@@ -12,6 +13,41 @@ let quitting = false;
 // Files the OS asked us to open before the page was ready to receive them (macOS "Open With", double-click).
 const pendingFiles = [];
 let recentFiles = null; // created once the app is ready and knows its user-data folder
+
+// ---------- Shutdown ----------
+// On Windows the app has been seen lingering in the background after its window
+// closed, holding its install files open. Quitting therefore never waits on
+// anything open-ended: once quitting starts, a watchdog forces the process to
+// exit after a few seconds whatever is still running, and each step is logged
+// so a hang that does happen shows how far shutdown got.
+const QUIT_TIMEOUT_MS = 4000;
+let quitWatchdog = null;
+
+function logShutdown(step) {
+  try {
+    const file = path.join(app.getPath('userData'), 'shutdown.log');
+    let previous = '';
+    try {
+      previous = fsSync.readFileSync(file, 'utf8').split('\n').slice(-200).join('\n'); // keep it small
+    } catch {
+      // first run: no log yet
+    }
+    fsSync.writeFileSync(file, `${previous}${new Date().toISOString()} [${process.pid}] ${step}\n`);
+  } catch {
+    // Logging must never get in the way of quitting.
+  }
+}
+
+function startQuitWatchdog(reason) {
+  if (quitWatchdog) return;
+  logShutdown(`quit started (${reason})`);
+  quitWatchdog = setTimeout(() => {
+    logShutdown('quit timed out, forcing exit');
+    app.exit(0);
+    // app.exit should end the process; if even that stalls, end it from Node.
+    setTimeout(() => process.exit(0), 1000);
+  }, QUIT_TIMEOUT_MS);
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -36,14 +72,24 @@ function createWindow() {
     return { action: 'deny' };
   });
 
-  // Let the page ask about unsaved changes before the window goes away.
+  let pageUnresponsive = false;
+  // Let the page ask about unsaved changes before the window goes away. If the page has
+  // crashed or stopped responding it can't answer, so the window closes rather than staying stuck.
   mainWindow.on('close', (event) => {
-    if (closeConfirmed || !rendererReady) return;
+    if (closeConfirmed || !rendererReady || pageUnresponsive) return;
     event.preventDefault();
     mainWindow.webContents.send('app:request-close');
   });
 
+  mainWindow.on('unresponsive', () => (pageUnresponsive = true));
+  mainWindow.on('responsive', () => (pageUnresponsive = false));
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    logShutdown(`page process gone (${details.reason})`);
+    rendererReady = false;
+  });
+
   mainWindow.on('closed', () => {
+    logShutdown('window closed');
     mainWindow = null;
     rendererReady = false;
     closeConfirmed = false;
@@ -235,12 +281,32 @@ ipcMain.handle('app:print', (event) => {
 });
 ipcMain.handle('dialog:error', (_event, title, message) => dialog.showErrorBox(title, message));
 // Writes to a temporary file first so a failed save never leaves a half-written PDF.
+// On Windows a virus scanner often has the fresh temporary file open for a moment, which
+// makes the rename fail with EPERM/EBUSY, so it is retried briefly. The temporary file is
+// removed if the save fails, so nothing is left behind holding the folder.
 ipcMain.handle('file:save', async (_event, filePath, data) => {
   const tmp = path.join(path.dirname(filePath), `.${path.basename(filePath)}.${process.pid}.tmp`);
-  await fs.writeFile(tmp, data);
-  await fs.rename(tmp, filePath);
+  try {
+    await fs.writeFile(tmp, data);
+    await renameWithRetry(tmp, filePath);
+  } catch (err) {
+    await fs.rm(tmp, { force: true }).catch(() => {});
+    throw err;
+  }
   rememberRecent(filePath);
 });
+
+async function renameWithRetry(from, to) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fs.rename(from, to);
+    } catch (err) {
+      if (attempt >= 10 || !['EPERM', 'EBUSY', 'EACCES'].includes(err.code)) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 100 * (attempt + 1)));
+    }
+  }
+}
+
 ipcMain.on('app:close-confirmed', () => {
   closeConfirmed = true;
   if (quitting) app.quit();
@@ -253,6 +319,9 @@ ipcMain.on('app:close-cancelled', () => {
 app.on('before-quit', () => {
   quitting = true;
 });
+// Past this point every window has closed and nothing can stop the quit.
+app.on('will-quit', () => startQuitWatchdog('will-quit'));
+app.on('quit', (_event, exitCode) => logShutdown(`quit (exit code ${exitCode})`));
 ipcMain.handle('file:read', (_event, filePath) => readPdf(filePath));
 // Files dropped onto the window open through the same path as File > Open, so they are remembered too.
 ipcMain.on('file:open-path', (_event, filePath) => sendFileToRenderer(filePath));
@@ -284,9 +353,12 @@ app.on('open-file', (event, filePath) => {
 });
 
 // Windows and Linux start a second copy of the app when a PDF is double-clicked
-// while it is already open; hand that file to the open window instead.
-if (!isMac && !app.requestSingleInstanceLock()) {
-  app.quit();
+// while it is already open; hand that file to the open window instead. The second
+// copy exits at once: app.quit() here would still let it reach 'ready' and open
+// a window of its own, leaving an extra process behind.
+const isSecondCopy = !isMac && !app.requestSingleInstanceLock();
+if (isSecondCopy) {
+  app.exit(0);
 } else {
   app.on('second-instance', (_event, argv) => {
     argv.slice(1).filter((a) => a.toLowerCase().endsWith('.pdf')).forEach(sendFileToRenderer);
@@ -297,7 +369,7 @@ if (!isMac && !app.requestSingleInstanceLock()) {
   });
 }
 
-app.whenReady().then(() => {
+if (!isSecondCopy) app.whenReady().then(() => {
   recentFiles = new RecentFiles(path.join(app.getPath('userData'), 'recent-files.json'));
   buildMenu();
   createWindow();
@@ -314,5 +386,7 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  if (!isMac) app.quit();
+  if (isMac) return;
+  startQuitWatchdog('last window closed');
+  app.quit();
 });
